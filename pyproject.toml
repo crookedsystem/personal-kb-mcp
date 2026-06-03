@@ -9,6 +9,9 @@ dependencies = [
     "pydantic-settings>=2.6.0",
 ]
 
+[project.scripts]
+personal-kb-mcp = "personal_kb_mcp.main:run_server"
+
 [project.optional-dependencies]
 dev = [
     "mypy>=1.14.0",
