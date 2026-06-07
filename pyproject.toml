@@ -52,3 +52,8 @@ filterwarnings = [
 [tool.coverage.run]
 branch = true
 source = ["personal_kb_mcp"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_empty = true
