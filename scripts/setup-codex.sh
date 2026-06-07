@@ -5,7 +5,7 @@ DRY_RUN=false
 SERVER_NAME="${PERSONAL_KB_MCP_SERVER_NAME:-personal_kb}"
 SERVER_URL="${PERSONAL_KB_MCP_URL:-http://127.0.0.1:${KB_PORT:-9999}${KB_MCP_PATH:-/mcp}}"
 CODEX_HOME="${CODEX_HOME:-${HOME}/.codex}"
-CODEX_SKILLS_DIR="${CODEX_SKILLS_DIR:-${HOME}/.agents/skills}"
+CODEX_SKILLS_DIR="${CODEX_SKILLS_DIR:-${CODEX_HOME}/skills}"
 CONFIG_PATH="${CODEX_CONFIG_PATH:-${CODEX_HOME}/config.toml}"
 
 while [[ $# -gt 0 ]]; do

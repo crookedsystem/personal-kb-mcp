@@ -125,7 +125,7 @@ scripts/setup-codex.sh
 
 What it does:
 
-- Copies `skills/personal-kb-llm-wiki/` to `${CODEX_SKILLS_DIR:-~/.agents/skills}/personal-kb-llm-wiki/`
+- Copies `skills/personal-kb-llm-wiki/` to `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/personal-kb-llm-wiki/`
 - Adds an idempotent `personal-kb-mcp` block to `${CODEX_CONFIG_PATH:-~/.codex/config.toml}`
 
 Manual `~/.codex/config.toml` equivalent:

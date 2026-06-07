@@ -125,7 +125,7 @@ scripts/setup-codex.sh
 
 它会执行：
 
-- 将 `skills/personal-kb-llm-wiki/` 复制到 `${CODEX_SKILLS_DIR:-~/.agents/skills}/personal-kb-llm-wiki/`
+- 将 `skills/personal-kb-llm-wiki/` 复制到 `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/personal-kb-llm-wiki/`
 - 向 `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` 添加 idempotent `personal-kb-mcp` block
 
 手动 `~/.codex/config.toml` equivalent：

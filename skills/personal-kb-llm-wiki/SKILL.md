@@ -80,6 +80,6 @@ If project-scoped `.mcp.json` is used, Claude may ask you to approve the server 
 
 ### Codex
 
-Codex reads this skill from `.agents/skills` or `$HOME/.agents/skills`. The default MCP server id is `personal_kb`; check Codex MCP startup/status output if the tools are not visible.
+Codex reads installed skills from `$CODEX_HOME/skills` (default `$HOME/.codex/skills`). The default MCP server id is `personal_kb`; check Codex MCP startup/status output if the tools are not visible.
 
-When adding this as a repo skill, place it under `.agents/skills/personal-kb-llm-wiki/`. When adding it for one user across all repos, place it under `$HOME/.agents/skills/personal-kb-llm-wiki/`.
+Install this skill under `$CODEX_HOME/skills/personal-kb-llm-wiki/`, or set `CODEX_SKILLS_DIR` only when your Codex installation explicitly loads another skill directory.

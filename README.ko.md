@@ -125,7 +125,7 @@ scripts/setup-codex.sh
 
 수행 내용:
 
-- `skills/personal-kb-llm-wiki/`를 `${CODEX_SKILLS_DIR:-~/.agents/skills}/personal-kb-llm-wiki/`로 복사
+- `skills/personal-kb-llm-wiki/`를 `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/personal-kb-llm-wiki/`로 복사
 - `${CODEX_CONFIG_PATH:-~/.codex/config.toml}`에 idempotent `personal-kb-mcp` block 추가
 
 수동 `~/.codex/config.toml` 설정 equivalent:
