@@ -2,8 +2,6 @@
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-Git으로 관리되는 Obsidian/Markdown 지식 베이스를 위한 개인용 MCP 서버입니다.
-
 구현은 작은 pull request 단위로 반영하며, 각 PR은 변경 라인 200줄 미만을 유지합니다.
 
 ## 현재 기능
@@ -23,8 +21,7 @@ Git으로 관리되는 Obsidian/Markdown 지식 베이스를 위한 개인용 MC
 ## 로컬 설정
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
+uv sync --extra dev
 cp .env.example .env
 ```
 
@@ -33,7 +30,7 @@ cp .env.example .env
 ## 실행
 
 ```bash
-.venv/bin/personal-kb-mcp
+uv run personal-kb-mcp
 ```
 
 Hermes MCP 설정 예시:
@@ -50,7 +47,7 @@ mcp_servers:
 
 예상 workflow는 다음과 같습니다:
 
-1. `.venv/bin/personal-kb-mcp`로 MCP 서버를 실행합니다.
+1. `uv run personal-kb-mcp`로 MCP 서버를 실행합니다.
 2. agent를 `http://127.0.0.1:9999/mcp`에 연결합니다.
 3. canonical `personal-kb-llm-wiki` skill을 설치해 agent가 wiki convention을 알 수 있게 합니다.
 4. MCP tool과 skill이 다시 로드되도록 agent session을 재시작합니다.
@@ -167,8 +164,8 @@ Skill은 agent에게 다음을 지시합니다:
 ## 검증
 
 ```bash
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m ruff check .
-.venv/bin/python -m mypy src tests
-.venv/bin/python -m pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src tests
+uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
 ```

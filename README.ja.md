@@ -2,8 +2,6 @@
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-Git 管理された Obsidian/Markdown ナレッジベース向けのプライベート MCP サーバーです。
-
 実装は小さな pull request 単位で取り込み、各 PR は変更行数 200 行未満に保ちます。
 
 ## 現在の機能
@@ -23,8 +21,7 @@ Git 管理された Obsidian/Markdown ナレッジベース向けのプライベ
 ## ローカル設定
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
+uv sync --extra dev
 cp .env.example .env
 ```
 
@@ -33,7 +30,7 @@ cp .env.example .env
 ## 実行
 
 ```bash
-.venv/bin/personal-kb-mcp
+uv run personal-kb-mcp
 ```
 
 Hermes MCP 設定例：
@@ -50,7 +47,7 @@ mcp_servers:
 
 想定 workflow は次のとおりです：
 
-1. `.venv/bin/personal-kb-mcp` で MCP サーバーを実行します。
+1. `uv run personal-kb-mcp` で MCP サーバーを実行します。
 2. agent を `http://127.0.0.1:9999/mcp` に接続します。
 3. canonical `personal-kb-llm-wiki` skill をインストールし、agent が wiki convention を理解できるようにします。
 4. MCP tool と skill が再読み込みされるように agent session を再起動します。
@@ -167,8 +164,8 @@ Claude は `--scope local|user|project` もサポートします。Codex は `--
 ## 検証
 
 ```bash
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m ruff check .
-.venv/bin/python -m mypy src tests
-.venv/bin/python -m pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src tests
+uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
 ```

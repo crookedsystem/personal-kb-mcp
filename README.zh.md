@@ -2,8 +2,6 @@
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-面向 Git 托管的 Obsidian/Markdown 知识库的私有 MCP 服务器。
-
 实现会通过小型 pull request 合入，并让每个 PR 保持在 200 行变更以内。
 
 ## 当前功能
@@ -23,8 +21,7 @@
 ## 本地设置
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
+uv sync --extra dev
 cp .env.example .env
 ```
 
@@ -33,7 +30,7 @@ cp .env.example .env
 ## 运行
 
 ```bash
-.venv/bin/personal-kb-mcp
+uv run personal-kb-mcp
 ```
 
 Hermes MCP 配置示例：
@@ -50,7 +47,7 @@ mcp_servers:
 
 预期 workflow 如下：
 
-1. 使用 `.venv/bin/personal-kb-mcp` 运行 MCP 服务器。
+1. 使用 `uv run personal-kb-mcp` 运行 MCP 服务器。
 2. 将 agent 连接到 `http://127.0.0.1:9999/mcp`。
 3. 安装 canonical `personal-kb-llm-wiki` skill，让 agent 了解 wiki convention。
 4. 重启 agent session，使 MCP tool 和 skill 重新加载。
@@ -167,8 +164,8 @@ Claude 还支持 `--scope local|user|project`。Codex 还支持 `--config /path/
 ## 验证
 
 ```bash
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m ruff check .
-.venv/bin/python -m mypy src tests
-.venv/bin/python -m pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src tests
+uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
 ```

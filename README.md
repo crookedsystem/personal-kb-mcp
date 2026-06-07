@@ -2,8 +2,6 @@
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-Private MCP server for a Git-backed Obsidian/Markdown knowledge base.
-
 Implementation lands through small pull requests, each kept under 200 changed lines.
 
 ## Current capabilities
@@ -23,8 +21,7 @@ Implementation lands through small pull requests, each kept under 200 changed li
 ## Local setup
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
+uv sync --extra dev
 cp .env.example .env
 ```
 
@@ -33,7 +30,7 @@ Edit `.env`, especially `KB_VAULT_PATH`.
 ## Run
 
 ```bash
-.venv/bin/personal-kb-mcp
+uv run personal-kb-mcp
 ```
 
 Hermes MCP config example:
@@ -50,7 +47,7 @@ This repository includes ready-to-copy MCP snippets, one canonical agent skill, 
 
 The expected flow is:
 
-1. Run the MCP server with `.venv/bin/personal-kb-mcp`.
+1. Run the MCP server with `uv run personal-kb-mcp`.
 2. Connect the agent to `http://127.0.0.1:9999/mcp`.
 3. Install the canonical `personal-kb-llm-wiki` skill so the agent knows the wiki conventions.
 4. Restart the agent session so MCP tools and skills are reloaded.
@@ -167,8 +164,8 @@ Current MCP tools exposed by the server are `kb_write_note`, `kb_vault_status`, 
 ## Validate
 
 ```bash
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m ruff check .
-.venv/bin/python -m mypy src tests
-.venv/bin/python -m pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src tests
+uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
 ```
