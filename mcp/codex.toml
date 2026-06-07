@@ -1,0 +1,7 @@
+# Copy this block into ~/.codex/config.toml, or run scripts/setup-codex.sh.
+# Codex calls Streamable HTTP MCP servers through the `url` field.
+[mcp_servers.personal_kb]
+url = "http://127.0.0.1:9999/mcp"
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+default_tools_approval_mode = "prompt"
