@@ -26,6 +26,34 @@ def test_fastapi_app은_health_endpoint와_mcp_mount를_함께_노출한다(tmp_
     assert "Client must accept text/event-stream" in mcp_response.text
 
 
+def test_fastapi_app은_tools_endpoint에서_mcp_tool_schema를_문서화한다(
+    tmp_path: Path,
+) -> None:
+    # Given: MCP tool이 등록된 FastAPI app이 있다.
+    app = create_fastapi_app(Settings(vault_path=tmp_path / "vault"))
+
+    # When: tool 문서 endpoint를 호출한다.
+    with TestClient(app, base_url="http://127.0.0.1:9999") as client:
+        response = client.get("/tools")
+
+    # Then: MCP tool 목록과 입출력 schema가 REST 문서용 JSON으로 반환된다.
+    assert response.status_code == 200
+    tools = response.json()
+    write_note = next(tool for tool in tools if tool["name"] == "kb_write_note")
+    assert write_note["description"] == ""
+    assert write_note["inputSchema"]["type"] == "object"
+    assert write_note["inputSchema"]["required"] == ["note_path", "content"]
+    assert write_note["inputSchema"]["properties"]["note_path"]["type"] == "string"
+    assert write_note["inputSchema"]["properties"]["content"]["type"] == "string"
+    assert write_note["outputSchema"]["type"] == "object"
+    assert {tool["name"] for tool in tools} == {
+        "kb_write_note",
+        "kb_vault_status",
+        "kb_graph_health",
+        "kb_metrics",
+    }
+
+
 def test_fastapi_app은_없는_route를_공통_error_envelope로_응답한다(tmp_path: Path) -> None:
     # Given: 공통 error handler가 붙은 FastAPI app이 있다.
     app = create_fastapi_app(Settings(vault_path=tmp_path / "vault"))
