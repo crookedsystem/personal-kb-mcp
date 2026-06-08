@@ -102,11 +102,20 @@ def _markdown_notes(root: Path, search_root: Path) -> list[Path]:
         candidates = [search_root] if search_root.suffix == ".md" else []
     else:
         candidates = list(search_root.rglob("*.md"))
-    return sorted(
-        path.resolve()
-        for path in candidates
-        if path.is_file() and not _uses_denied_directory(root, path.resolve())
-    )
+    return sorted(path for candidate in candidates if (path := _searchable_note(root, candidate)))
+
+
+def _searchable_note(root: Path, candidate: Path) -> Path | None:
+    if not candidate.is_file():
+        return None
+    resolved_candidate = candidate.resolve()
+    try:
+        resolved_candidate.relative_to(root)
+    except ValueError:
+        return None
+    if _uses_denied_directory(root, resolved_candidate):
+        return None
+    return resolved_candidate
 
 
 def _uses_denied_directory(root: Path, path: Path) -> bool:
@@ -225,6 +234,8 @@ def _score_note(
         score += min(headings_lower.count(term), 3) * 4.0
         score += min(content_lower.count(term), 10) * 1.0
 
+    if score <= 0:
+        return 0.0
     score += _structure_boost(relative_path)
     return score
 

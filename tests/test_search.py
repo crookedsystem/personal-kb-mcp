@@ -73,6 +73,46 @@ def test_search_notes는_path_prefix와_거부된_디렉터리를_적용한다(t
     assert [result.path for result in results] == ["concepts/retrieval.md"]
 
 
+def test_search_notes는_query_match가_없으면_structure_boost만으로_결과를_만들지_않는다(
+    tmp_path: Path,
+) -> None:
+    # Given: 구조상 boost 대상인 index와 synthesized page만 있는 vault가 있다.
+    vault_root = tmp_path / "vault"
+    (vault_root / "concepts").mkdir(parents=True)
+    (vault_root / "index.md").write_text("# Wiki Index\n", encoding="utf-8")
+    (vault_root / "concepts" / "agent-memory.md").write_text(
+        "# Agent Memory\n\nRelevant agent page.\n",
+        encoding="utf-8",
+    )
+
+    # When: 어느 note에도 없는 query로 검색한다.
+    results = search_notes(vault_root, "nomatch")
+
+    # Then: index/concepts boost만으로 관련 없는 결과를 반환하지 않는다.
+    assert results == []
+
+
+def test_search_notes는_vault_밖을_가리키는_markdown_symlink를_건너뛴다(
+    tmp_path: Path,
+) -> None:
+    # Given: vault 내부에 외부 Markdown 파일을 가리키는 symlink가 있다.
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    outside_note = tmp_path / "outside.md"
+    outside_note.write_text("# External\n\nexternal-only term\n", encoding="utf-8")
+    symlink_path = vault_root / "external.md"
+    try:
+        symlink_path.symlink_to(outside_note)
+    except (NotImplementedError, OSError):
+        pytest.skip("filesystem does not support symlinks")
+
+    # When: symlink target에만 있는 query로 검색한다.
+    results = search_notes(vault_root, "external-only")
+
+    # Then: vault 밖 파일은 검색하지 않고 전체 search도 실패하지 않는다.
+    assert results == []
+
+
 @pytest.mark.parametrize("limit", [0, 51])
 def test_search_notes는_limit_범위를_검증한다(tmp_path: Path, limit: int) -> None:
     # Given: 빈 vault가 있다.
