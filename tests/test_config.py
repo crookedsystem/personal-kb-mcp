@@ -5,8 +5,23 @@ from pytest import MonkeyPatch
 from personal_kb_mcp.config import Settings
 
 
-def test_설정은_명시하지_않은_값에_안전한_기본값을_사용한다(tmp_path: Path) -> None:
-    # Given: vault 경로만 명시한 설정이 있다.
+def test_설정은_명시하지_않은_값에_안전한_기본값을_사용한다(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: 기본값 검증에 영향을 주는 KB_ 환경변수가 없다.
+    for env_name in (
+        "KB_HOST",
+        "KB_PORT",
+        "KB_MCP_PATH",
+        "KB_ENABLE_WRITES",
+        "KB_REQUIRE_IF_HASH_FOR_UPDATES",
+        "KB_REQUIRE_PROVENANCE",
+        "KB_VECTOR_ENABLED",
+        "KB_VECTOR_PROVIDER",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.chdir(tmp_path)
     settings = Settings(vault_path=tmp_path / "vault")
 
     # When: 서버, 쓰기, provenance, vector 기본값을 조회한다.

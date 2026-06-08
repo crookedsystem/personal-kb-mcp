@@ -28,7 +28,7 @@ def test_run_server는_settings로_fastapi_app을_생성하고_uvicorn을_실행
     monkeypatch.setattr(cast(Any, main_module).uvicorn, "run", fake_uvicorn_run)
 
     # When: 명시 Settings로 서버 실행 진입점을 호출한다.
-    main_module.run_server(Settings(vault_path=tmp_path / "vault"))
+    main_module.run_server(Settings(host="127.0.0.1", vault_path=tmp_path / "vault"))
 
     # Then: 생성된 app과 설정의 host/port/log level이 uvicorn에 전달된다.
     assert calls == {

@@ -8,7 +8,7 @@ from personal_kb_mcp.transport.mcp_server import create_mcp_server
 
 def test_mcp_server는_기본_http_설정을_사용한다(tmp_path: Path) -> None:
     # Given: 기본 Settings로 MCP server를 생성한다.
-    server = create_mcp_server(Settings(vault_path=tmp_path / "vault"))
+    server = create_mcp_server(Settings(host="127.0.0.1", vault_path=tmp_path / "vault"))
 
     # When: FastMCP HTTP 설정을 조회한다.
     settings = server.settings
@@ -19,29 +19,33 @@ def test_mcp_server는_기본_http_설정을_사용한다(tmp_path: Path) -> Non
     assert settings.streamable_http_path == "/mcp"
 
 
-def test_mcp_server는_핵심_tool을_등록하고_note를_작성한다(tmp_path: Path) -> None:
+def test_mcp_server는_write와_search_tool만_노출하고_description을_제공한다(
+    tmp_path: Path,
+) -> None:
     async def exercise_server() -> None:
         # Given: 임시 vault를 바라보는 MCP server가 있다.
-        server = create_mcp_server(Settings(vault_path=tmp_path / "vault"))
+        vault_root = tmp_path / "vault"
+        server = create_mcp_server(Settings(host="127.0.0.1", vault_path=vault_root))
 
-        # When: 등록된 tool 목록을 조회하고 write/status tool을 호출한다.
+        # When: 등록된 tool 목록을 조회하고 write/search tool을 호출한다.
         tools = await server.list_tools()
         _, write_result = await server.call_tool(
             "kb_write_note",
-            {"note_path": "daily/today.md", "content": "Body text"},
+            {"note_path": "concepts/agent-memory.md", "content": "# Agent Memory\n"},
         )
         structured_write_result = cast(dict[str, Any], write_result)
-        _, status_result = await server.call_tool("kb_vault_status", {})
-        structured_status_result = cast(dict[str, Any], status_result)
+        _, search_result = await server.call_tool("kb_search_notes", {"query": "agent memory"})
+        structured_search_result = cast(dict[str, Any], search_result)
 
-        # Then: 핵심 tool이 노출되고 write 결과가 status에 반영된다.
-        assert {tool.name for tool in tools} >= {
-            "kb_write_note",
-            "kb_vault_status",
-            "kb_graph_health",
-            "kb_metrics",
-        }
+        # Then: MCP는 쓰기/검색 tool만 노출하고 각 tool description은 비어 있지 않다.
+        tool_by_name = {tool.name: tool for tool in tools}
+        assert set(tool_by_name) == {"kb_write_note", "kb_search_notes"}
+        assert "complete Markdown note" in (tool_by_name["kb_write_note"].description or "")
+        assert "Search Markdown notes" in (tool_by_name["kb_search_notes"].description or "")
         assert structured_write_result["source_hash"]
-        assert structured_status_result["note_count"] == 1
+        results = cast(list[dict[str, Any]], structured_search_result["results"])
+        assert structured_search_result["count"] == 1
+        assert results[0]["path"] == "concepts/agent-memory.md"
+        assert results[0]["content_hash"] == structured_write_result["content_hash"]
 
     asyncio.run(exercise_server())

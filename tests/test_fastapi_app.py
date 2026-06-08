@@ -26,6 +26,33 @@ def test_fastapi_app은_health_endpoint와_mcp_mount를_함께_노출한다(tmp_
     assert "Client must accept text/event-stream" in mcp_response.text
 
 
+def test_fastapi_app은_metrics_endpoint에서_vault와_graph_지표를_통합한다(
+    tmp_path: Path,
+) -> None:
+    # Given: 두 note와 하나의 broken wikilink가 있는 vault app이 있다.
+    vault_root = tmp_path / "vault"
+    (vault_root / "daily").mkdir(parents=True)
+    (vault_root / "daily" / "a.md").write_text("[[b]] [[missing]]\n", encoding="utf-8")
+    (vault_root / "daily" / "b.md").write_text("# B\n", encoding="utf-8")
+    app = create_fastapi_app(Settings(vault_path=vault_root))
+
+    # When: REST metrics endpoint와 OpenAPI schema를 호출한다.
+    with TestClient(app, base_url="http://127.0.0.1:9999") as client:
+        metrics_response = client.get("/metrics")
+        openapi_response = client.get("/openapi.json")
+
+    # Then: graph health와 vault metrics가 단일 API endpoint에 통합되어 Swagger에 노출된다.
+    assert metrics_response.status_code == 200
+    assert metrics_response.json() == {
+        "vault_notes_total": 2,
+        "vault_bytes_total": 22,
+        "graph_links_total": 2,
+        "graph_broken_links_total": 1,
+        "graph_orphans_total": 1,
+    }
+    assert "/metrics" in openapi_response.json()["paths"]
+
+
 def test_fastapi_app은_tools_endpoint에서_mcp_tool_schema를_문서화한다(
     tmp_path: Path,
 ) -> None:
@@ -36,21 +63,23 @@ def test_fastapi_app은_tools_endpoint에서_mcp_tool_schema를_문서화한다(
     with TestClient(app, base_url="http://127.0.0.1:9999") as client:
         response = client.get("/tools")
 
-    # Then: MCP tool 목록과 입출력 schema가 REST 문서용 JSON으로 반환된다.
+    # Then: write/search MCP tool 목록과 명확한 설명이 REST 문서용 JSON으로 반환된다.
     assert response.status_code == 200
     tools = response.json()
     write_note = next(tool for tool in tools if tool["name"] == "kb_write_note")
-    assert write_note["description"] == ""
+    search_notes = next(tool for tool in tools if tool["name"] == "kb_search_notes")
+    assert "complete Markdown note" in write_note["description"]
+    assert "Search Markdown notes" in search_notes["description"]
     assert write_note["inputSchema"]["type"] == "object"
     assert write_note["inputSchema"]["required"] == ["note_path", "content"]
     assert write_note["inputSchema"]["properties"]["note_path"]["type"] == "string"
     assert write_note["inputSchema"]["properties"]["content"]["type"] == "string"
     assert write_note["outputSchema"]["type"] == "object"
+    assert search_notes["inputSchema"]["required"] == ["query"]
+    assert search_notes["inputSchema"]["properties"]["query"]["type"] == "string"
     assert {tool["name"] for tool in tools} == {
         "kb_write_note",
-        "kb_vault_status",
-        "kb_graph_health",
-        "kb_metrics",
+        "kb_search_notes",
     }
 
 

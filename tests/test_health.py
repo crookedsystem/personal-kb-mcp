@@ -20,7 +20,9 @@ def test_vault_점검은_상태와_그래프_건강도와_메트릭을_함께_�
     assert inspection.graph.broken_link_count == 1
     assert inspection.graph.orphan_count == 1
     assert inspection.metrics.vault_notes_total == 2
+    assert inspection.metrics.graph_links_total == 2
     assert inspection.metrics.graph_broken_links_total == 1
+    assert inspection.metrics.graph_orphans_total == 1
 
 
 def test_vault_점검은_거부된_디렉터리의_markdown을_무시한다(tmp_path: Path) -> None:

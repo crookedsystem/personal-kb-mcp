@@ -25,7 +25,9 @@ class GraphHealth:
 class MetricsSnapshot:
     vault_notes_total: int
     vault_bytes_total: int
+    graph_links_total: int
     graph_broken_links_total: int
+    graph_orphans_total: int
 
 
 @dataclass(frozen=True)
@@ -47,7 +49,9 @@ def inspect_vault(vault_root: Path) -> VaultInspection:
     metrics = MetricsSnapshot(
         vault_notes_total=status.note_count,
         vault_bytes_total=status.total_bytes,
+        graph_links_total=graph.link_count,
         graph_broken_links_total=graph.broken_link_count,
+        graph_orphans_total=graph.orphan_count,
     )
     return VaultInspection(status=status, graph=graph, metrics=metrics)
 

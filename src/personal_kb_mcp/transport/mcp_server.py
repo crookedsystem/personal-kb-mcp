@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 
 from personal_kb_mcp.config import Settings
 from personal_kb_mcp.runtime import create_runtime
-from personal_kb_mcp.status.health import inspect_vault
+from personal_kb_mcp.vault.search import search_notes
 from personal_kb_mcp.writes.writer import VaultWriter
 
 McpLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -21,7 +21,13 @@ def create_mcp_server(settings: Settings, writer: VaultWriter | None = None) -> 
         log_level=cast(McpLogLevel, settings.log_level.upper()),
     )
 
-    @server.tool()
+    @server.tool(
+        description=(
+            "Write a complete Markdown note inside the configured vault. "
+            "Existing notes require the current content_hash as if_hash so agents do not "
+            "overwrite a newer wiki revision by accident."
+        )
+    )
     async def kb_write_note(
         note_path: str,
         content: str,
@@ -35,16 +41,28 @@ def create_mcp_server(settings: Settings, writer: VaultWriter | None = None) -> 
             "commit_hash": result.commit_hash,
         }
 
-    @server.tool()
-    def kb_vault_status() -> dict[str, object]:
-        return asdict(inspect_vault(settings.vault_path).status)
-
-    @server.tool()
-    def kb_graph_health() -> dict[str, object]:
-        return asdict(inspect_vault(settings.vault_path).graph)
-
-    @server.tool()
-    def kb_metrics() -> dict[str, object]:
-        return asdict(inspect_vault(settings.vault_path).metrics)
+    @server.tool(
+        description=(
+            "Search Markdown notes in the configured LLM Wiki vault. Returns ranked note "
+            "paths, titles, page types, tags, content_hash values for safe follow-up writes, "
+            "and line snippets from matching wiki pages."
+        )
+    )
+    def kb_search_notes(
+        query: str,
+        limit: int = 10,
+        path_prefix: str | None = None,
+    ) -> dict[str, Any]:
+        results = search_notes(
+            settings.vault_path,
+            query,
+            limit=limit,
+            path_prefix=path_prefix,
+        )
+        return {
+            "query": query,
+            "count": len(results),
+            "results": [asdict(result) for result in results],
+        }
 
     return server
