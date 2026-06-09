@@ -4,7 +4,11 @@ from pytest import MonkeyPatch
 from setup_support import cli
 from setup_support.codex_config import add_codex_mcp_server
 from setup_support.config import ResolvedConfig, build_server_url, load_env, resolve_config
-from setup_support.hooks import install_agent_hooks, merge_claude_hook_settings
+from setup_support.hooks import (
+    install_agent_hooks,
+    merge_claude_hook_settings,
+    merge_codex_hook_settings,
+)
 
 
 def test_load_env는_dotenv를_읽고_process_env가_우선한다(tmp_path: Path) -> None:
@@ -273,9 +277,66 @@ def test_install_agent_hooks는_claude_script와_settings를_설치한다(tmp_pa
     assert "export LLM_WIKI_MCP_SERVER_NAME LLM_WIKI_MCP_URL" in context_script
     assert "llm_wiki_agent_hook.py" in stop_script
     assert " stop " in stop_script
-    assert "--claude-stop-json" in stop_script
+    assert "--block-json" in stop_script
     assert "UserPromptSubmit" in settings
     assert "Stop" in settings
+
+
+def test_codex_hook_settings는_hooks_json에_병합하고_중복하지_않는다(
+    tmp_path: Path,
+) -> None:
+    settings_path = tmp_path / "hooks.json"
+
+    changed = merge_codex_hook_settings(
+        settings_path=settings_path,
+        context_command=str(tmp_path / "context.sh"),
+        stop_command=str(tmp_path / "stop.sh"),
+        dry_run=False,
+    )
+    unchanged = merge_codex_hook_settings(
+        settings_path=settings_path,
+        context_command=str(tmp_path / "context.sh"),
+        stop_command=str(tmp_path / "stop.sh"),
+        dry_run=False,
+    )
+
+    content = settings_path.read_text(encoding="utf-8")
+    assert changed is True
+    assert unchanged is False
+    assert '"UserPromptSubmit"' in content
+    assert '"Stop"' in content
+    assert content.count("context.sh") == 1
+    assert content.count("stop.sh") == 1
+
+
+def test_install_agent_hooks는_codex_script와_hooks_json을_설치한다(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "KB_PORT=18083\n"
+        f"CODEX_HOME={tmp_path / 'codex'}\n"
+        f"CODEX_LLM_WIKI_HOOKS_DIR={tmp_path / 'codex-hooks'}\n",
+        encoding="utf-8",
+    )
+    config = resolve_config(
+        agent="codex",
+        repo_root=repo_root,
+        env_file=env_file,
+        process_env={},
+    )
+
+    result = install_agent_hooks(config)
+
+    assert result is not None
+    assert result.context_hook.exists()
+    assert result.stop_hook.exists()
+    stop_script = result.stop_hook.read_text(encoding="utf-8")
+    assert "--block-json" in stop_script
+    hooks_json = (tmp_path / "codex" / "hooks.json").read_text(encoding="utf-8")
+    assert "UserPromptSubmit" in hooks_json
+    assert "Stop" in hooks_json
+    assert result.settings_path == tmp_path / "codex" / "hooks.json"
 
 
 def test_codex_config는_기존_server_name을_덮어쓰지_않는다(tmp_path: Path) -> None:

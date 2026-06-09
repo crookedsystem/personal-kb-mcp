@@ -77,3 +77,20 @@ def test_stop_mode는_claude_block_json을_출력하고_재진입을_막는다(
 
     assert result == 0
     assert capsys.readouterr().out == ""
+
+
+def test_stop_mode는_block_json_canonical_flag도_지원한다(
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sys.stdin",
+        type("FakeStdin", (), {"read": lambda self: json.dumps({"stop_hook_active": False})})(),
+    )
+
+    result = main(["stop", "--block-json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert result == 0
+    assert output["decision"] == "block"
+    assert STOP_UPDATE_REASON.strip() in output["reason"]

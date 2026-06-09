@@ -88,10 +88,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="MCP call timeout in seconds",
     )
     parser.add_argument(
+        "--block-json",
         "--claude-stop-json",
+        dest="block_json",
         action="store_true",
         help=(
-            "Emit Claude Code Stop-hook JSON that blocks once and asks the model to update the wiki"
+            "Emit Stop-hook JSON (decision=block) that blocks once and asks the model to update "
+            "the wiki. Works for Claude Code and Codex, which share the same Stop-hook schema. "
+            "`--claude-stop-json` is a backward-compatible alias."
         ),
     )
     return parser
@@ -153,7 +157,7 @@ def run_stop_mode(args: argparse.Namespace, event: Mapping[str, Any]) -> int:
     if is_stop_hook_active(event):
         return 0
 
-    if args.claude_stop_json:
+    if args.block_json:
         print(json.dumps({"decision": "block", "reason": STOP_UPDATE_REASON}, ensure_ascii=False))
     else:
         print(STOP_UPDATE_REASON)

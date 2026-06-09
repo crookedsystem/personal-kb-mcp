@@ -39,7 +39,10 @@ def install_agent_hooks(config: ResolvedConfig) -> HookInstallResult | None:
             render_hook_script(
                 config,
                 mode="stop",
-                extra_args=["--claude-stop-json"] if config.agent == "claude" else [],
+                # Claude Code and Codex share the same Stop-hook schema, so both consume the
+                # decision=block JSON. Hermes only exposes finalize-style session hooks (no
+                # re-prompt), so it gets the plain-text reason instead.
+                extra_args=["--block-json"] if config.agent in {"claude", "codex"} else [],
             ),
             encoding="utf-8",
         )
@@ -57,10 +60,20 @@ def install_agent_hooks(config: ResolvedConfig) -> HookInstallResult | None:
             stop_command=str(stop_hook),
             dry_run=config.dry_run,
         )
-    elif config.agent in {"hermes", "codex"}:
+    elif config.agent == "codex":
+        settings_path = config.codex_hooks_json_path
+        settings_changed = merge_codex_hook_settings(
+            settings_path=settings_path,
+            context_command=str(context_hook),
+            stop_command=str(stop_hook),
+            dry_run=config.dry_run,
+        )
+    elif config.agent == "hermes":
         print(
-            f"Installed reusable LLM Wiki hook commands for {config.agent}. "
-            "Wire them into that client's native hook/plugin/wrapper mechanism if available."
+            "Installed reusable LLM Wiki hook commands for hermes. Hermes exposes only "
+            "finalize-style session hooks (on_session_end/on_session_finalize/subagent_stop) "
+            "without Claude-style Stop re-prompting, so wire these scripts into a Hermes "
+            "plugin/wrapper or finalize hook for an out-of-loop update pass."
         )
 
     return HookInstallResult(
@@ -128,20 +141,60 @@ def merge_claude_hook_settings(
     stop_command: str,
     dry_run: bool,
 ) -> bool:
-    settings = load_json_object(settings_path)
+    """Merge UserPromptSubmit/Stop hooks into Claude Code's `settings.json`."""
+    return merge_hook_settings_json(
+        settings_path=settings_path,
+        context_command=context_command,
+        stop_command=stop_command,
+        dry_run=dry_run,
+        label="Claude",
+    )
+
+
+def merge_codex_hook_settings(
+    *,
+    settings_path: Path,
+    context_command: str,
+    stop_command: str,
+    dry_run: bool,
+) -> bool:
+    """Merge UserPromptSubmit/Stop hooks into Codex's `hooks.json`.
+
+    Codex (2026+) shares Claude Code's hook JSON schema — same `hooks` object, event
+    names, command shape, and decision=block Stop semantics — so the merge logic is
+    identical; only the destination file differs.
+    """
+    return merge_hook_settings_json(
+        settings_path=settings_path,
+        context_command=context_command,
+        stop_command=stop_command,
+        dry_run=dry_run,
+        label="Codex",
+    )
+
+
+def merge_hook_settings_json(
+    *,
+    settings_path: Path,
+    context_command: str,
+    stop_command: str,
+    dry_run: bool,
+    label: str,
+) -> bool:
+    settings = load_json_object(settings_path, label=label)
     hooks = settings.setdefault("hooks", {})
     if not isinstance(hooks, dict):
         hooks = {}
         settings["hooks"] = hooks
 
     changed = False
-    changed |= ensure_claude_hook_command(
+    changed |= ensure_hook_command(
         hooks,
         event="UserPromptSubmit",
         command=context_command,
         timeout=5,
     )
-    changed |= ensure_claude_hook_command(
+    changed |= ensure_hook_command(
         hooks,
         event="Stop",
         command=stop_command,
@@ -150,32 +203,32 @@ def merge_claude_hook_settings(
 
     if changed:
         if dry_run:
-            print(f"[dry-run] merge Claude LLM Wiki hooks into {settings_path}")
+            print(f"[dry-run] merge {label} LLM Wiki hooks into {settings_path}")
         else:
             settings_path.parent.mkdir(parents=True, exist_ok=True)
             settings_path.write_text(
                 json.dumps(settings, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
-            print(f"Merged Claude LLM Wiki hooks into {settings_path}.")
+            print(f"Merged {label} LLM Wiki hooks into {settings_path}.")
     else:
-        print(f"Claude LLM Wiki hooks already exist in {settings_path}; not duplicating.")
+        print(f"{label} LLM Wiki hooks already exist in {settings_path}; not duplicating.")
     return changed
 
 
-def load_json_object(path: Path) -> dict[str, Any]:
+def load_json_object(path: Path, *, label: str = "Hook settings") -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Cannot parse Claude settings JSON: {path}") from exc
+        raise ValueError(f"Cannot parse {label} settings JSON: {path}") from exc
     if not isinstance(parsed, dict):
-        raise ValueError(f"Claude settings must be a JSON object: {path}")
+        raise ValueError(f"{label} settings must be a JSON object: {path}")
     return parsed
 
 
-def ensure_claude_hook_command(
+def ensure_hook_command(
     hooks: dict[str, Any],
     *,
     event: str,
@@ -187,7 +240,7 @@ def ensure_claude_hook_command(
         event_entries = []
         hooks[event] = event_entries
 
-    if claude_hook_command_exists(event_entries, command):
+    if hook_command_exists(event_entries, command):
         return False
 
     event_entries.append(
@@ -204,7 +257,7 @@ def ensure_claude_hook_command(
     return True
 
 
-def claude_hook_command_exists(entries: list[Any], command: str) -> bool:
+def hook_command_exists(entries: list[Any], command: str) -> bool:
     for entry in entries:
         if not isinstance(entry, dict):
             continue

@@ -44,6 +44,9 @@ It should write only durable facts/decisions/procedures, update `index.md`/`log.
 content changes, and use `content_hash` as `if_hash` for safe updates.
 
 Claude Code user-level setup is merged into `{claude_settings_path}` when `--agent claude`
-is used. Hermes/Hermess and Codex do not share Claude's JSON hook schema; wire these scripts into
-the client's native hook/plugin/wrapper mechanism when available.
+is used. Codex shares Claude Code's hook JSON schema (UserPromptSubmit/Stop, decision=block),
+so `--agent codex` merges equivalent entries into `~/.codex/hooks.json` automatically.
+
+Hermes/Hermess exposes only finalize-style session hooks (no Claude-style Stop re-prompt), so
+wire these scripts into a Hermes plugin/wrapper or finalize hook for an out-of-loop update pass.
 """

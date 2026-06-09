@@ -32,6 +32,7 @@ class ResolvedConfig:
     claude_hooks_dir: Path
     claude_settings_path: Path
     codex_hooks_dir: Path
+    codex_hooks_json_path: Path
 
     @property
     def skill_source(self) -> Path:
@@ -137,6 +138,9 @@ def resolve_config(
     codex_hooks_dir = Path(
         env.get("CODEX_LLM_WIKI_HOOKS_DIR", str(codex_home / "hooks" / "llm-wiki"))
     ).expanduser()
+    codex_hooks_json_path = Path(
+        env.get("CODEX_HOOKS_JSON_PATH", str(codex_home / "hooks.json"))
+    ).expanduser()
 
     return ResolvedConfig(
         repo_root=repo_root,
@@ -157,6 +161,7 @@ def resolve_config(
         claude_hooks_dir=claude_hooks_dir,
         claude_settings_path=resolved_claude_settings_path,
         codex_hooks_dir=codex_hooks_dir,
+        codex_hooks_json_path=codex_hooks_json_path,
     )
 
 
