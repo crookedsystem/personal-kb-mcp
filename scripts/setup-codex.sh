@@ -2,8 +2,8 @@
 set -euo pipefail
 
 DRY_RUN=false
-SERVER_NAME="${PERSONAL_KB_MCP_SERVER_NAME:-personal_kb}"
-SERVER_URL="${PERSONAL_KB_MCP_URL:-http://127.0.0.1:${KB_PORT:-9999}${KB_MCP_PATH:-/mcp}}"
+SERVER_NAME="${LLM_WIKI_MCP_SERVER_NAME:-llm_wiki}"
+SERVER_URL="${LLM_WIKI_MCP_URL:-http://127.0.0.1:${KB_PORT:-9999}${KB_MCP_PATH:-/mcp}}"
 CODEX_HOME="${CODEX_HOME:-${HOME}/.codex}"
 CODEX_SKILLS_DIR="${CODEX_SKILLS_DIR:-${CODEX_HOME}/skills}"
 CONFIG_PATH="${CODEX_CONFIG_PATH:-${CODEX_HOME}/config.toml}"
@@ -35,8 +35,8 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SKILL_SOURCE="${REPO_ROOT}/skills/personal-kb-llm-wiki"
-SKILL_DEST="${CODEX_SKILLS_DIR}/personal-kb-llm-wiki"
+SKILL_SOURCE="${REPO_ROOT}/skills/llm-wiki"
+SKILL_DEST="${CODEX_SKILLS_DIR}/llm-wiki"
 
 run() {
   if [[ "${DRY_RUN}" == true ]]; then
@@ -75,8 +75,8 @@ from pathlib import Path
 config_path = Path(sys.argv[1]).expanduser()
 server_name = sys.argv[2]
 server_url = sys.argv[3]
-marker_begin = "# personal-kb-mcp setup: begin"
-marker_end = "# personal-kb-mcp setup: end"
+marker_begin = "# llm-wiki setup: begin"
+marker_end = "# llm-wiki setup: end"
 server_key = json.dumps(server_name)
 block = f"""{marker_begin}
 [mcp_servers.{server_key}]
@@ -87,7 +87,7 @@ default_tools_approval_mode = "prompt"
 {marker_end}
 """
 existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
-pattern = re.compile(r"^# personal-kb-mcp setup: begin\n.*?^# personal-kb-mcp setup: end\n?", re.M | re.S)
+pattern = re.compile(r"^# llm-wiki setup: begin\n.*?^# llm-wiki setup: end\n?", re.M | re.S)
 updated = pattern.sub("", existing).rstrip()
 if updated:
     updated = f"{updated}\n\n{block}"

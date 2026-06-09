@@ -1,8 +1,8 @@
-# Personal KB MCP
+# LLM Wiki MCP
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-面向 Git 托管的 Obsidian/Markdown 知识库的私有 MCP 服务器。
+面向 Git 托管的 Obsidian/Markdown LLM Wiki vault 的 MCP 服务器。
 
 ## 当前功能
 
@@ -27,17 +27,59 @@ cp .env.example .env
 
 编辑 `.env`，尤其是 `KB_VAULT_PATH`。
 
+### 配置 LLM Wiki vault
+
+`llm-wiki` 有两个不同的 root：
+
+- 这个 repository 是服务器源码（`src/`、`tests/`、`scripts/`）。
+- `KB_VAULT_PATH` 是 MCP tool 读取和写入的 Markdown 内容 root。
+
+请把 `KB_VAULT_PATH` 设置为你要在 Obsidian 中打开的同一个 vault 目录：
+
+```env
+KB_VAULT_PATH=/home/alice/Obsidian/LLM Wiki
+KB_HOST=127.0.0.1
+KB_PORT=9999
+KB_MCP_PATH=/mcp
+```
+
+不要把 `KB_VAULT_PATH` 指向本 repository 的 `src/` 目录，也不要指向 Obsidian 的 `.obsidian/` 配置目录。它应该指向包含 `SCHEMA.md`、`index.md` 和 `log.md` 的 vault root。
+
+推荐 vault 结构：
+
+```text
+$KB_VAULT_PATH/
+├── SCHEMA.md           # domain、frontmatter、tag 和 page rule
+├── index.md            # wiki page catalog 和单行摘要
+├── log.md              # append-only wiki action log
+├── raw/                # immutable source material
+│   ├── articles/
+│   ├── papers/
+│   ├── transcripts/
+│   └── assets/         # Obsidian attachments/images
+├── entities/           # people、orgs、products、models
+├── concepts/           # concepts 和 topics
+├── comparisons/        # side-by-side analyses
+└── queries/            # 值得保存的 query answers
+```
+
+`raw/` 是 vault 内的 source-material 区域；repository 的 `src/` 只是 application code。Agent 在创建或更新页面之前，应先读取 `SCHEMA.md`、`index.md` 和最近的 `log.md`。
+
+### 连接 Obsidian
+
+在 Obsidian 中直接打开 `KB_VAULT_PATH` 即可。无需单独 connector：Obsidian 和 MCP server 操作同一组 Markdown 文件。建议把附件目录设为 `raw/assets/`，保持 Wikilinks 启用，并按需安装 Dataview 以查询 YAML frontmatter。如果使用 Obsidian Sync，请同步同一个 vault 目录。
+
 ## 运行
 
 ```bash
-uv run personal-kb-mcp
+uv run llm-wiki
 ```
 
 Hermes MCP 配置示例：
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
 ```
 
@@ -47,20 +89,20 @@ mcp_servers:
 
 预期 workflow 如下：
 
-1. 使用 `uv run personal-kb-mcp` 运行 MCP 服务器。
+1. 使用 `uv run llm-wiki` 运行 MCP 服务器。
 2. 将 agent 连接到 `http://127.0.0.1:9999/mcp`。
-3. 安装 canonical `personal-kb-llm-wiki` skill，让 agent 了解 wiki convention。
+3. 安装 canonical `llm-wiki` skill，让 agent 了解 wiki convention。
 4. 重启 agent session，使 MCP tool 和 skill 重新加载。
 
 ### 为 agent integration 添加的文件
 
 | Agent | MCP snippet | Skill source | Setup script |
 | --- | --- | --- | --- |
-| Hermes/Hermess | `mcp/hermess.yaml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-hermess.sh` |
-| Claude Code | `mcp/claude.json` | `skills/personal-kb-llm-wiki/` | `scripts/setup-claude.sh` |
-| Codex | `mcp/codex.toml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-codex.sh` |
+| Hermes/Hermess | `mcp/hermess.yaml` | `skills/llm-wiki/` | `scripts/setup-hermess.sh` |
+| Claude Code | `mcp/claude.json` | `skills/llm-wiki/` | `scripts/setup-claude.sh` |
+| Codex | `mcp/codex.toml` | `skills/llm-wiki/` | `scripts/setup-codex.sh` |
 
-该 skill 有意保持 single-source：所有 agent 都安装同一个 `skills/personal-kb-llm-wiki/SKILL.md`。Agent-specific 差异只存在于 setup script，以及 skill 的 “Agent-specific MCP names” 部分。
+该 skill 有意保持 single-source：所有 agent 都安装同一个 `skills/llm-wiki/SKILL.md`。Agent-specific 差异只存在于 setup script，以及 skill 的 “Agent-specific MCP names” 部分。
 
 ### 设置 Hermes/Hermess
 
@@ -70,15 +112,15 @@ scripts/setup-hermess.sh
 
 它会执行：
 
-- 将 `skills/personal-kb-llm-wiki/` 复制到 `${HERMES_HOME:-~/.hermes}/skills/personal-kb-llm-wiki/`
-- 运行 `hermes mcp add personal_kb --url http://127.0.0.1:9999/mcp`
-- CLI 可用时运行 `hermes mcp test personal_kb`
+- 将 `skills/llm-wiki/` 复制到 `${HERMES_HOME:-~/.hermes}/skills/llm-wiki/`
+- 运行 `hermes mcp add llm_wiki --url http://127.0.0.1:9999/mcp`
+- CLI 可用时运行 `hermes mcp test llm_wiki`
 
 手动 equivalent：
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
     timeout: 120
     connect_timeout: 30
@@ -94,16 +136,16 @@ scripts/setup-claude.sh
 
 它会执行：
 
-- 将 `skills/personal-kb-llm-wiki/` 复制到 `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/personal-kb-llm-wiki/`
-- 运行 `claude mcp add -s user --transport http personal-kb http://127.0.0.1:9999/mcp`
-- CLI 可用时运行 `claude mcp get personal-kb`
+- 将 `skills/llm-wiki/` 复制到 `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/llm-wiki/`
+- 运行 `claude mcp add -s user --transport http llm-wiki http://127.0.0.1:9999/mcp`
+- CLI 可用时运行 `claude mcp get llm-wiki`
 
 Project-scoped `.mcp.json` 手动 equivalent：
 
 ```json
 {
   "mcpServers": {
-    "personal-kb": {
+    "llm-wiki": {
       "type": "http",
       "url": "http://127.0.0.1:9999/mcp",
       "timeout": 120000
@@ -122,13 +164,13 @@ scripts/setup-codex.sh
 
 它会执行：
 
-- 将 `skills/personal-kb-llm-wiki/` 复制到 `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/personal-kb-llm-wiki/`
-- 向 `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` 添加 idempotent `personal-kb-mcp` block
+- 将 `skills/llm-wiki/` 复制到 `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/`
+- 向 `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` 添加 idempotent `llm-wiki` block
 
 手动 `~/.codex/config.toml` equivalent：
 
 ```toml
-[mcp_servers.personal_kb]
+[mcp_servers.llm_wiki]
 url = "http://127.0.0.1:9999/mcp"
 startup_timeout_sec = 30
 tool_timeout_sec = 120
@@ -144,7 +186,7 @@ default_tools_approval_mode = "prompt"
 ```bash
 --dry-run                 # 只打印将执行的操作，不写文件或修改 agent config
 --server-url URL          # 默认值: http://127.0.0.1:9999/mcp
---server-name NAME        # 默认值: Hermes/Codex 为 personal_kb，Claude 为 personal-kb
+--server-name NAME        # 默认值: Hermes/Codex 为 llm_wiki，Claude 为 llm-wiki
 ```
 
 Claude 还支持 `--scope local|user|project`。Codex 还支持 `--config /path/to/config.toml`。
@@ -167,5 +209,5 @@ Claude 还支持 `--scope local|user|project`。Codex 还支持 `--config /path/
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy src tests
-uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run pytest --cov=src --cov-fail-under=80
 ```

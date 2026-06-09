@@ -23,7 +23,7 @@ def test_ci는_커버리지_요약을_pr에_댓글로_게시한다() -> None:
         "issues: write",
         "coverage-summary.md",
         "actions/github-script@v7",
-        "personal-kb-mcp-coverage",
+        "llm-wiki-coverage",
     ]
 
     # Then: PR comment를 작성하거나 갱신할 수 있는 설정과 sticky comment marker가 있어야 한다.

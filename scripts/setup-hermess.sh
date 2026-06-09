@@ -2,8 +2,8 @@
 set -euo pipefail
 
 DRY_RUN=false
-SERVER_NAME="${PERSONAL_KB_MCP_SERVER_NAME:-personal_kb}"
-SERVER_URL="${PERSONAL_KB_MCP_URL:-http://127.0.0.1:${KB_PORT:-9999}${KB_MCP_PATH:-/mcp}}"
+SERVER_NAME="${LLM_WIKI_MCP_SERVER_NAME:-llm_wiki}"
+SERVER_URL="${LLM_WIKI_MCP_URL:-http://127.0.0.1:${KB_PORT:-9999}${KB_MCP_PATH:-/mcp}}"
 HERMES_HOME="${HERMES_HOME:-${HOME}/.hermes}"
 
 while [[ $# -gt 0 ]]; do
@@ -29,8 +29,8 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SKILL_SOURCE="${REPO_ROOT}/skills/personal-kb-llm-wiki"
-SKILL_DEST="${HERMES_HOME}/skills/personal-kb-llm-wiki"
+SKILL_SOURCE="${REPO_ROOT}/skills/llm-wiki"
+SKILL_DEST="${HERMES_HOME}/skills/llm-wiki"
 
 run() {
   if [[ "${DRY_RUN}" == true ]]; then

@@ -1,8 +1,8 @@
-# Personal KB MCP
+# LLM Wiki MCP
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-Git 管理された Obsidian/Markdown ナレッジベース向けのプライベート MCP サーバーです。
+Git 管理された Obsidian/Markdown LLM Wiki vault 向けの MCP サーバーです。
 
 ## 現在の機能
 
@@ -27,17 +27,59 @@ cp .env.example .env
 
 `.env` を編集してください。特に `KB_VAULT_PATH` を設定します。
 
+### LLM Wiki vault の設定
+
+`llm-wiki` には別々の 2 つの root があります：
+
+- この repository は server source code です（`src/`, `tests/`, `scripts/`）。
+- `KB_VAULT_PATH` は MCP tool が読み書きする Markdown content root です。
+
+`KB_VAULT_PATH` は Obsidian で開く vault と同じ directory に設定してください：
+
+```env
+KB_VAULT_PATH=/home/alice/Obsidian/LLM Wiki
+KB_HOST=127.0.0.1
+KB_PORT=9999
+KB_MCP_PATH=/mcp
+```
+
+`KB_VAULT_PATH` をこの repository の `src/` directory や Obsidian の `.obsidian/` config directory に向けないでください。`SCHEMA.md`, `index.md`, `log.md` を含む vault root を指す必要があります。
+
+推奨 vault 構造：
+
+```text
+$KB_VAULT_PATH/
+├── SCHEMA.md           # domain, frontmatter, tag, page rule
+├── index.md            # wiki page catalog と 1 行 summary
+├── log.md              # append-only wiki action log
+├── raw/                # immutable source material
+│   ├── articles/
+│   ├── papers/
+│   ├── transcripts/
+│   └── assets/         # Obsidian attachments/images
+├── entities/           # people, orgs, products, models
+├── concepts/           # concepts and topics
+├── comparisons/        # side-by-side analyses
+└── queries/            # durable query answers
+```
+
+`raw/` は vault 内の source-material area で、repository の `src/` は application code 専用です。Agent は page を作成・更新する前に、`SCHEMA.md`, `index.md`, 最近の `log.md` を先に読む必要があります。
+
+### Obsidian 接続
+
+Obsidian で `KB_VAULT_PATH` を vault として開くだけです。別の connector は不要です。Obsidian と MCP server は同じ Markdown files を操作します。推奨設定は attachment folder を `raw/assets/` にし、Wikilinks を有効に保ち、必要に応じて YAML frontmatter query 用に Dataview plugin を入れることです。Obsidian Sync を使う場合も、この同じ vault directory を同期してください。
+
 ## 実行
 
 ```bash
-uv run personal-kb-mcp
+uv run llm-wiki
 ```
 
 Hermes MCP 設定例：
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
 ```
 
@@ -47,20 +89,20 @@ mcp_servers:
 
 想定 workflow は次のとおりです：
 
-1. `uv run personal-kb-mcp` で MCP サーバーを実行します。
+1. `uv run llm-wiki` で MCP サーバーを実行します。
 2. agent を `http://127.0.0.1:9999/mcp` に接続します。
-3. canonical `personal-kb-llm-wiki` skill をインストールし、agent が wiki convention を理解できるようにします。
+3. canonical `llm-wiki` skill をインストールし、agent が wiki convention を理解できるようにします。
 4. MCP tool と skill が再読み込みされるように agent session を再起動します。
 
 ### Agent integration 用に追加されたファイル
 
 | Agent | MCP snippet | Skill source | Setup script |
 | --- | --- | --- | --- |
-| Hermes/Hermess | `mcp/hermess.yaml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-hermess.sh` |
-| Claude Code | `mcp/claude.json` | `skills/personal-kb-llm-wiki/` | `scripts/setup-claude.sh` |
-| Codex | `mcp/codex.toml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-codex.sh` |
+| Hermes/Hermess | `mcp/hermess.yaml` | `skills/llm-wiki/` | `scripts/setup-hermess.sh` |
+| Claude Code | `mcp/claude.json` | `skills/llm-wiki/` | `scripts/setup-claude.sh` |
+| Codex | `mcp/codex.toml` | `skills/llm-wiki/` | `scripts/setup-codex.sh` |
 
-この skill は意図的に single-source 構成です。すべての agent が同じ `skills/personal-kb-llm-wiki/SKILL.md` をインストールします。Agent-specific な違いは setup script と、skill 内の「Agent-specific MCP names」セクションにあります。
+この skill は意図的に single-source 構成です。すべての agent が同じ `skills/llm-wiki/SKILL.md` をインストールします。Agent-specific な違いは setup script と、skill 内の「Agent-specific MCP names」セクションにあります。
 
 ### Hermes/Hermess の設定
 
@@ -70,15 +112,15 @@ scripts/setup-hermess.sh
 
 実行内容：
 
-- `skills/personal-kb-llm-wiki/` を `${HERMES_HOME:-~/.hermes}/skills/personal-kb-llm-wiki/` にコピー
-- `hermes mcp add personal_kb --url http://127.0.0.1:9999/mcp` を実行
-- CLI が利用可能な場合は `hermes mcp test personal_kb` を実行
+- `skills/llm-wiki/` を `${HERMES_HOME:-~/.hermes}/skills/llm-wiki/` にコピー
+- `hermes mcp add llm_wiki --url http://127.0.0.1:9999/mcp` を実行
+- CLI が利用可能な場合は `hermes mcp test llm_wiki` を実行
 
 手動設定 equivalent：
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
     timeout: 120
     connect_timeout: 30
@@ -94,16 +136,16 @@ scripts/setup-claude.sh
 
 実行内容：
 
-- `skills/personal-kb-llm-wiki/` を `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/personal-kb-llm-wiki/` にコピー
-- `claude mcp add -s user --transport http personal-kb http://127.0.0.1:9999/mcp` を実行
-- CLI が利用可能な場合は `claude mcp get personal-kb` を実行
+- `skills/llm-wiki/` を `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/llm-wiki/` にコピー
+- `claude mcp add -s user --transport http llm-wiki http://127.0.0.1:9999/mcp` を実行
+- CLI が利用可能な場合は `claude mcp get llm-wiki` を実行
 
 Project-scoped `.mcp.json` の手動設定 equivalent：
 
 ```json
 {
   "mcpServers": {
-    "personal-kb": {
+    "llm-wiki": {
       "type": "http",
       "url": "http://127.0.0.1:9999/mcp",
       "timeout": 120000
@@ -122,13 +164,13 @@ scripts/setup-codex.sh
 
 実行内容：
 
-- `skills/personal-kb-llm-wiki/` を `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/personal-kb-llm-wiki/` にコピー
-- `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` に idempotent な `personal-kb-mcp` block を追加
+- `skills/llm-wiki/` を `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/` にコピー
+- `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` に idempotent な `llm-wiki` block を追加
 
 手動 `~/.codex/config.toml` 設定 equivalent：
 
 ```toml
-[mcp_servers.personal_kb]
+[mcp_servers.llm_wiki]
 url = "http://127.0.0.1:9999/mcp"
 startup_timeout_sec = 30
 tool_timeout_sec = 120
@@ -144,7 +186,7 @@ default_tools_approval_mode = "prompt"
 ```bash
 --dry-run                 # ファイル書き込みや agent config 変更をせず、実行予定の操作を表示
 --server-url URL          # デフォルト: http://127.0.0.1:9999/mcp
---server-name NAME        # デフォルト: Hermes/Codex は personal_kb、Claude は personal-kb
+--server-name NAME        # デフォルト: Hermes/Codex は llm_wiki、Claude は llm-wiki
 ```
 
 Claude は `--scope local|user|project` もサポートします。Codex は `--config /path/to/config.toml` もサポートします。
@@ -167,5 +209,5 @@ Claude は `--scope local|user|project` もサポートします。Codex は `--
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy src tests
-uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run pytest --cov=src --cov-fail-under=80
 ```

@@ -1,17 +1,17 @@
 ---
-name: personal-kb-llm-wiki
-description: Use personal-kb-mcp from Hermes/Hermess, Claude Code, or Codex to maintain an Obsidian or Markdown LLM Wiki knowledge base. Trigger for vault, KB, wiki, Obsidian, research memory, and persistent note-writing tasks that should call the personal_kb or personal-kb MCP tools.
+name: llm-wiki
+description: Use llm-wiki from Hermes/Hermess, Claude Code, or Codex to maintain an Obsidian or Markdown LLM Wiki knowledge base. Trigger for vault, KB, wiki, Obsidian, research memory, and persistent note-writing tasks that should call the llm_wiki or llm-wiki MCP tools.
 ---
 
-# Personal KB LLM Wiki
+# LLM Wiki
 
-Use the running `personal-kb-mcp` server as the write/search bridge to a Git-backed Obsidian or Markdown vault, then maintain that vault with the LLM Wiki pattern: raw sources stay immutable, synthesized pages stay interlinked, and every durable change updates navigation and log files.
+Use the running `llm-wiki` server as the write/search bridge to a Git-backed Obsidian or Markdown vault, then maintain that vault with the LLM Wiki pattern: raw sources stay immutable, synthesized pages stay interlinked, and every durable change updates navigation and log files.
 
 This is the single canonical skill for Hermes/Hermess, Claude Code, and Codex. The setup scripts copy this same skill into each agent's expected skill directory; only MCP config format, install path, and tool-name prefix differ by agent.
 
 ## When to use this skill
 
-Use it when the user asks to use an Obsidian vault, Markdown KB, personal wiki, LLM Wiki, research memory, or `personal-kb-mcp` as persistent knowledge for an agent.
+Use it when the user asks to use an Obsidian vault, Markdown KB, personal wiki, LLM Wiki, research memory, or `llm-wiki` as persistent knowledge for an agent.
 
 Do not use it for one-off answers that should not be saved, or when the MCP server is unavailable and the user only wants a normal chat answer.
 
@@ -62,21 +62,21 @@ Agent UIs may prefix MCP tool names. If you see prefixed names, map them back to
 
 ### Hermes/Hermess
 
-Hermes prefixes native MCP tools as `mcp_<server>_<tool>`. With the default `personal_kb` server name, look for:
+Hermes prefixes native MCP tools as `mcp_<server>_<tool>`. With the default `llm_wiki` server name, look for:
 
-- `mcp_personal_kb_kb_write_note`
-- `mcp_personal_kb_kb_search_notes`
+- `mcp_llm_wiki_kb_write_note`
+- `mcp_llm_wiki_kb_search_notes`
 
-If these tools do not appear, run `hermes mcp list`, `hermes mcp test personal_kb`, then restart the Hermes session or gateway. In an existing session, use `/reload-mcp` if available.
+If these tools do not appear, run `hermes mcp list`, `hermes mcp test llm_wiki`, then restart the Hermes session or gateway. In an existing session, use `/reload-mcp` if available.
 
 ### Claude Code
 
-Claude Code usually displays MCP tools with a server namespace such as `mcp__personal-kb__kb_write_note`. With the default setup, look for the `personal-kb` MCP server in `/mcp` or `claude mcp list`.
+Claude Code usually displays MCP tools with a server namespace such as `mcp__llm-wiki__kb_write_note`. With the default setup, look for the `llm-wiki` MCP server in `/mcp` or `claude mcp list`.
 
 If project-scoped `.mcp.json` is used, Claude may ask you to approve the server the first time it sees the project. Approve only after confirming the endpoint is the expected local URL.
 
 ### Codex
 
-Codex reads installed skills from `$CODEX_HOME/skills` (default `$HOME/.codex/skills`). The default MCP server id is `personal_kb`; check Codex MCP startup/status output if the tools are not visible.
+Codex reads installed skills from `$CODEX_HOME/skills` (default `$HOME/.codex/skills`). The default MCP server id is `llm_wiki`; check Codex MCP startup/status output if the tools are not visible.
 
-Install this skill under `$CODEX_HOME/skills/personal-kb-llm-wiki/`, or set `CODEX_SKILLS_DIR` only when your Codex installation explicitly loads another skill directory.
+Install this skill under `$CODEX_HOME/skills/llm-wiki/`, or set `CODEX_SKILLS_DIR` only when your Codex installation explicitly loads another skill directory.

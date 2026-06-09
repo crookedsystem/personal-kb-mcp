@@ -42,7 +42,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const marker = '<!-- personal-kb-mcp-coverage -->';
+            const marker = '<!-- llm-wiki-coverage -->';
             const summary = fs.existsSync('coverage-summary.md')
               ? fs.readFileSync('coverage-summary.md', 'utf8')
               : '## 테스트 커버리지\n\ncoverage-summary.md 파일을 찾지 못했습니다.';

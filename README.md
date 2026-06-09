@@ -1,8 +1,8 @@
-# Personal KB MCP
+# LLM Wiki MCP
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-Private MCP server for a Git-backed Obsidian/Markdown knowledge base.
+MCP server for a Git-backed Obsidian/Markdown LLM Wiki vault.
 
 ## Current capabilities
 
@@ -27,17 +27,59 @@ cp .env.example .env
 
 Edit `.env`, especially `KB_VAULT_PATH`.
 
+### Configure the LLM Wiki vault
+
+`llm-wiki` has two separate roots:
+
+- This repository is the server source code (`src/`, `tests/`, `scripts/`).
+- `KB_VAULT_PATH` is the Markdown content root that the MCP tools read and write.
+
+Set `KB_VAULT_PATH` to the same directory you want to open in Obsidian:
+
+```env
+KB_VAULT_PATH=/home/alice/Obsidian/LLM Wiki
+KB_HOST=127.0.0.1
+KB_PORT=9999
+KB_MCP_PATH=/mcp
+```
+
+Do not point `KB_VAULT_PATH` at this repository's `src/` directory or at an Obsidian `.obsidian/` config directory. It should point at the vault root that contains the LLM Wiki files.
+
+Recommended vault layout:
+
+```text
+$KB_VAULT_PATH/
+├── SCHEMA.md           # domain, frontmatter, tag, and page rules
+├── index.md            # catalog of wiki pages with one-line summaries
+├── log.md              # append-only wiki action log
+├── raw/                # immutable source material
+│   ├── articles/
+│   ├── papers/
+│   ├── transcripts/
+│   └── assets/         # Obsidian attachments and images
+├── entities/           # people, orgs, products, models
+├── concepts/           # concepts and topics
+├── comparisons/        # side-by-side analyses
+└── queries/            # durable query answers worth keeping
+```
+
+`raw/` is the vault's source-material area; the repository `src/` directory is only application code. Agents should search/read `SCHEMA.md`, `index.md`, and recent `log.md` before creating or updating pages.
+
+### Connect Obsidian
+
+Open `KB_VAULT_PATH` as an Obsidian vault. No separate connector is required: Obsidian and the MCP server operate on the same Markdown files. For best results, set Obsidian's attachment folder to `raw/assets/`, keep Wikilinks enabled, and optionally install Dataview for YAML-frontmatter queries. If you use Obsidian Sync, sync this same vault directory across devices.
+
 ## Run
 
 ```bash
-uv run personal-kb-mcp
+uv run llm-wiki
 ```
 
 Hermes MCP config example:
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
 ```
 
@@ -47,20 +89,20 @@ This repository includes ready-to-copy MCP snippets, one canonical agent skill, 
 
 The expected flow is:
 
-1. Run the MCP server with `uv run personal-kb-mcp`.
+1. Run the MCP server with `uv run llm-wiki`.
 2. Connect the agent to `http://127.0.0.1:9999/mcp`.
-3. Install the canonical `personal-kb-llm-wiki` skill so the agent knows the wiki conventions.
+3. Install the canonical `llm-wiki` skill so the agent knows the wiki conventions.
 4. Restart the agent session so MCP tools and skills are reloaded.
 
 ### Files added for agent integrations
 
 | Agent | MCP snippet | Skill source | Setup script |
 | --- | --- | --- | --- |
-| Hermes/Hermess | `mcp/hermess.yaml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-hermess.sh` |
-| Claude Code | `mcp/claude.json` | `skills/personal-kb-llm-wiki/` | `scripts/setup-claude.sh` |
-| Codex | `mcp/codex.toml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-codex.sh` |
+| Hermes/Hermess | `mcp/hermess.yaml` | `skills/llm-wiki/` | `scripts/setup-hermess.sh` |
+| Claude Code | `mcp/claude.json` | `skills/llm-wiki/` | `scripts/setup-claude.sh` |
+| Codex | `mcp/codex.toml` | `skills/llm-wiki/` | `scripts/setup-codex.sh` |
 
-The skill is intentionally single-source: all agents install the same `skills/personal-kb-llm-wiki/SKILL.md`. Agent-specific differences live in setup scripts and in the skill's "Agent-specific MCP names" section.
+The skill is intentionally single-source: all agents install the same `skills/llm-wiki/SKILL.md`. Agent-specific differences live in setup scripts and in the skill's "Agent-specific MCP names" section.
 
 ### Setup Hermes/Hermess
 
@@ -70,15 +112,15 @@ scripts/setup-hermess.sh
 
 What it does:
 
-- Copies `skills/personal-kb-llm-wiki/` to `${HERMES_HOME:-~/.hermes}/skills/personal-kb-llm-wiki/`
-- Runs `hermes mcp add personal_kb --url http://127.0.0.1:9999/mcp`
-- Runs `hermes mcp test personal_kb` when the CLI is available
+- Copies `skills/llm-wiki/` to `${HERMES_HOME:-~/.hermes}/skills/llm-wiki/`
+- Runs `hermes mcp add llm_wiki --url http://127.0.0.1:9999/mcp`
+- Runs `hermes mcp test llm_wiki` when the CLI is available
 
 Manual equivalent:
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
     timeout: 120
     connect_timeout: 30
@@ -94,16 +136,16 @@ scripts/setup-claude.sh
 
 What it does:
 
-- Copies `skills/personal-kb-llm-wiki/` to `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/personal-kb-llm-wiki/`
-- Runs `claude mcp add -s user --transport http personal-kb http://127.0.0.1:9999/mcp`
-- Runs `claude mcp get personal-kb` when the CLI is available
+- Copies `skills/llm-wiki/` to `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/llm-wiki/`
+- Runs `claude mcp add -s user --transport http llm-wiki http://127.0.0.1:9999/mcp`
+- Runs `claude mcp get llm-wiki` when the CLI is available
 
 Manual project-scoped `.mcp.json` equivalent:
 
 ```json
 {
   "mcpServers": {
-    "personal-kb": {
+    "llm-wiki": {
       "type": "http",
       "url": "http://127.0.0.1:9999/mcp",
       "timeout": 120000
@@ -122,13 +164,13 @@ scripts/setup-codex.sh
 
 What it does:
 
-- Copies `skills/personal-kb-llm-wiki/` to `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/personal-kb-llm-wiki/`
-- Adds an idempotent `personal-kb-mcp` block to `${CODEX_CONFIG_PATH:-~/.codex/config.toml}`
+- Copies `skills/llm-wiki/` to `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/`
+- Adds an idempotent `llm-wiki` block to `${CODEX_CONFIG_PATH:-~/.codex/config.toml}`
 
 Manual `~/.codex/config.toml` equivalent:
 
 ```toml
-[mcp_servers.personal_kb]
+[mcp_servers.llm_wiki]
 url = "http://127.0.0.1:9999/mcp"
 startup_timeout_sec = 30
 tool_timeout_sec = 120
@@ -144,7 +186,7 @@ All setup scripts support:
 ```bash
 --dry-run                 # print actions without writing files or changing agent config
 --server-url URL          # default: http://127.0.0.1:9999/mcp
---server-name NAME        # default: personal_kb for Hermes/Codex, personal-kb for Claude
+--server-name NAME        # default: llm_wiki for Hermes/Codex, llm-wiki for Claude
 ```
 
 Claude also supports `--scope local|user|project`. Codex also supports `--config /path/to/config.toml`.
@@ -167,5 +209,5 @@ Current MCP tools exposed by the server are `kb_write_note` and `kb_search_notes
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy src tests
-uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run pytest --cov=src --cov-fail-under=80
 ```

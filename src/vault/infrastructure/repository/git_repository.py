@@ -8,8 +8,8 @@ class GitRepository(FrozenModel):
     """Small git adapter for committing changed vault paths."""
 
     root: Path
-    committer_name: str = "Personal KB MCP"
-    committer_email: str = "personal-kb@example.invalid"
+    committer_name: str = "LLM Wiki MCP"
+    committer_email: str = "llm-wiki@example.invalid"
 
     def commit_paths(self, paths: list[Path], message: str) -> str:
         relative_paths = [self._relative_path(path) for path in paths]
