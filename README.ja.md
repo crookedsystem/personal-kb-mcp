@@ -221,9 +221,12 @@ Claude は `--scope local|user|project` もサポートします。Codex は `--
 
 - 書き込み前に `kb_search_notes` で既存 Markdown wiki page を検索する。
 - 直接ファイルアクセスまたは `kb_search_notes` snippet で `SCHEMA.md`、`index.md`、`log.md` を基準に orientation する。
+- 新しい vault にまだ `SCHEMA.md` がない場合、skill 内蔵の schema、page type、index、log、provenance ガイドで初期化する。
+- `kb_search_notes` は完全なファイル読み取りではなく snippet 検索として扱う。MCP-only mode では完全な現在の note body がない限り既存 note を更新しない。
 - `kb_write_note` を通じて完全な Markdown note を書き込む。
 - optimistic concurrency のため、返された `content_hash` を次の `if_hash` として使う。
 - raw source は immutable に保ち、durable wiki 変更では `index.md` と `log.md` を更新する。
+- 必要に応じて native hook または wrapper で always-on workflow を強制する。ユーザー入力時に compact wiki context を読み込み、agent 終了時に stop-time update pass を実行する。
 
 現在サーバーが公開している MCP tool は `kb_write_note` と `kb_search_notes` です。Vault/graph counters は REST `GET /metrics` endpoint で公開します。
 

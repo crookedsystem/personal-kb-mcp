@@ -221,9 +221,12 @@ Claude 还支持 `--scope local|user|project`。Codex 还支持 `--config /path/
 
 - 写入前使用 `kb_search_notes` 搜索已有 Markdown wiki page。
 - 通过直接文件访问或 `kb_search_notes` snippet，基于 `SCHEMA.md`、`index.md` 和 `log.md` 进行 orientation。
+- 当新 vault 还没有 `SCHEMA.md` 时，使用 skill 内置的 schema、page type、index、log 和 provenance 指南进行初始化。
+- 将 `kb_search_notes` 视为 snippet 搜索，而不是完整文件读取；在 MCP-only mode 下，如果没有完整的当前 note body，不要更新已有 note。
 - 通过 `kb_write_note` 写入完整 Markdown note。
 - 使用返回的 `content_hash` 作为下一次 optimistic concurrency 的 `if_hash`。
 - 保持 raw source immutable，并在 durable wiki 变更时更新 `index.md` 与 `log.md`。
+- 可选地用原生 hook 或 wrapper 强制 always-on workflow：用户输入时加载 compact wiki context，agent 结束时运行 stop-time update pass。
 
 当前服务器暴露的 MCP tool 是 `kb_write_note` 和 `kb_search_notes`。Vault/graph counters 通过 REST `GET /metrics` endpoint 暴露。
 

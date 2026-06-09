@@ -221,9 +221,12 @@ The skill tells agents to:
 
 - Use `kb_search_notes` to search existing Markdown wiki pages before writing.
 - Orient on `SCHEMA.md`, `index.md`, and `log.md` with direct file access or `kb_search_notes` snippets.
+- Apply the skill's built-in schema, page-type, index, log, and provenance guidance when a new vault does not have `SCHEMA.md` yet.
+- Treat `kb_search_notes` as snippets, not full file reads. Agents should not update existing notes in MCP-only mode unless they have the complete current note body.
 - Write complete Markdown notes through `kb_write_note`.
 - Use returned `content_hash` as the next `if_hash` for optimistic concurrency.
 - Keep raw sources immutable and update `index.md` plus `log.md` for durable wiki changes.
+- Optionally enforce always-on usage with native hooks or wrappers: load compact wiki context at user-input time and run a stop-time update pass after the agent finishes.
 
 Current MCP tools exposed by the server are `kb_write_note` and `kb_search_notes`. Vault/graph counters are exposed through the REST `GET /metrics` endpoint.
 

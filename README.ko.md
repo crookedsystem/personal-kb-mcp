@@ -221,9 +221,12 @@ Skill은 agent에게 다음을 지시합니다:
 
 - 쓰기 전에 `kb_search_notes`로 기존 Markdown wiki page 검색
 - 직접 파일 접근 또는 `kb_search_notes` snippet으로 `SCHEMA.md`, `index.md`, `log.md` 기준 orientation 수행
+- 새 vault에 아직 `SCHEMA.md`가 없으면 skill에 포함된 schema, page type, index, log, provenance 가이드를 기준으로 초기화
+- `kb_search_notes`는 전체 파일 읽기가 아니라 snippet 검색이므로, MCP-only mode에서는 complete current note body가 없으면 기존 note를 업데이트하지 않음
 - `kb_write_note`를 통해 완전한 Markdown note 작성
 - optimistic concurrency를 위해 반환된 `content_hash`를 다음 `if_hash`로 사용
 - raw source는 immutable하게 유지하고 durable wiki 변경 시 `index.md`와 `log.md` 업데이트
+- 필요하면 native hook 또는 wrapper로 항상 켜진 workflow 구성: 사용자 input 시점에는 compact wiki context를 로드하고, agent 종료 시점에는 stop-time update pass 실행
 
 현재 서버가 노출하는 MCP tool은 `kb_write_note`, `kb_search_notes`입니다. Vault/graph counter는 REST `GET /metrics` endpoint로 제공합니다.
 
