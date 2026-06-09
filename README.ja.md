@@ -104,8 +104,8 @@ mcp_servers:
 
 1. `.env.example` を `.env` にコピーし、実行するサーバーに合わせて `KB_VAULT_PATH`、`KB_HOST`、`KB_PORT`、`KB_MCP_PATH` を設定します。
 2. `uv run llm-wiki` で MCP サーバーを実行します。
-3. Setup entrypoint を実行します。デフォルトでは対応するすべての agent をインストールし、一部だけを対象にする場合は `--agent` を渡します。
-4. MCP tool と skill が再読み込みされるように agent session を再起動します。
+3. Setup entrypoint を実行します。デフォルトでは対応するすべての agent をインストールし、一部だけを対象にする場合は `--agent` を渡します。同じ MCP server を使って user input 時の context loading と stop-time wiki update pass を実行する hook scaffold も同時にインストールします。
+4. MCP tool、skill、native hook/plugin 設定が再読み込みされるように agent session を再起動します。
 
 ### Agent integration 用ファイル
 
@@ -115,7 +115,7 @@ mcp_servers:
 | Claude Code | `mcp/claude.json` | `skills/llm-wiki/` | `uv run python scripts/main.py --agent claude` |
 | Codex | `mcp/codex.toml` | `skills/llm-wiki/` | `uv run python scripts/main.py --agent codex` |
 
-Setup entrypoint は `scripts/main.py` です。`--agent` なしで実行すると Hermes/Hermess、Claude Code、Codex を一度にインストールします。再利用コードは `scripts/setup_support/` にあり、env 読み込み、MCP URL 解決、skill コピー、重複チェック、Codex TOML 編集をすべての agent が同じコードパスで使います。
+Setup entrypoint は `scripts/main.py` です。`--agent` なしで実行すると Hermes/Hermess、Claude Code、Codex を一度にインストールします。再利用コードは `scripts/setup_support/` にあり、env 読み込み、MCP URL 解決、skill コピー、hook インストール、重複チェック、Codex TOML 編集をすべての agent が同じコードパスで使います。Runtime hook helper は `scripts/agent_hooks/llm_wiki_agent_hook.py` です。
 
 この skill は意図的に single-source 構成です。すべての agent が同じ `skills/llm-wiki/SKILL.md` をインストールします。Agent-specific な違いは setup code と、skill 内の「Agent-specific MCP names」セクションにあります。
 
@@ -137,6 +137,13 @@ MCP server name の解決順：
 2. `LLM_WIKI_MCP_SERVER_NAME`
 3. Agent デフォルト: Hermes/Codex は `llm_wiki`、Claude Code は `llm-wiki`
 
+Hook setup はデフォルトで有効です。無効にするには `LLM_WIKI_INSTALL_HOOKS=false` を設定するか `--no-hooks` を渡します。生成される hook script は同じ helper を 2 つの mode で実行します:
+
+- user input: `kb_search_notes` を query し、model 用の compact `<llm-wiki-context>` block を出力
+- stop/completion: 最後の MCP update pass を model に依頼し、durable fact/decision/procedure だけを書き、content 変更時に `index.md`/`log.md` を更新
+
+Hook location は `HERMES_LLM_WIKI_HOOKS_DIR`、`CLAUDE_HOOKS_DIR`、`CLAUDE_SETTINGS_PATH`、`CODEX_LLM_WIKI_HOOKS_DIR`、`CODEX_HOOKS_JSON_PATH` で変更できます。
+
 ### 既存の MCP config は上書きしません
 
 Setup は server が存在しない場合だけ追加します：
@@ -156,6 +163,7 @@ uv run python scripts/main.py --agent hermes
 実行内容：
 
 - `skills/llm-wiki/` を `${HERMES_HOME:-~/.hermes}/skills/llm-wiki/` にコピー
+- reusable hook command を `${HERMES_LLM_WIKI_HOOKS_DIR:-${HERMES_HOME:-~/.hermes}/hooks/llm-wiki}/` にインストール
 - `${LLM_WIKI_MCP_SERVER_NAME:-llm_wiki}` が存在しない場合だけ Hermes MCP config に追加
 - CLI が利用可能な場合は `hermes mcp test <server-name>` を実行
 
@@ -170,8 +178,12 @@ uv run python scripts/main.py --agent claude
 実行内容：
 
 - `skills/llm-wiki/` を `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/llm-wiki/` にコピー
+- `llm-wiki-context-hook.sh` と `llm-wiki-stop-hook.sh` を `${CLAUDE_HOOKS_DIR:-~/.claude/hooks/llm-wiki}/` にインストール
+- Claude Code の `UserPromptSubmit` と `Stop` hook entry を `${CLAUDE_SETTINGS_PATH:-~/.claude/settings.json}` に重複なしで merge
 - `${LLM_WIKI_MCP_SERVER_NAME:-llm-wiki}` が存在しない場合だけ `claude mcp add -s ${CLAUDE_MCP_SCOPE:-user} --transport http ...` で追加
 - CLI が利用可能な場合は `claude mcp get <server-name>` を実行
+
+Claude の `UserPromptSubmit` hook は model 開始前に wiki context を出力します。`Stop` hook は Claude が終了する前に MCP で LLM Wiki を更新するよう一度だけ block decision を返し、follow-up stop event の `stop_hook_active=true` では再 block しないため無限 loop を防ぎます。
 
 Project-scoped `.mcp.json` server を初めて開くとき、Claude が承認を求める場合があります。
 
@@ -184,9 +196,11 @@ uv run python scripts/main.py --agent codex
 実行内容：
 
 - `skills/llm-wiki/` を `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/` にコピー
+- `llm-wiki-context-hook.sh` と `llm-wiki-stop-hook.sh` を `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/` にインストール
+- Codex `UserPromptSubmit`/`Stop` hook エントリを重複なく `${CODEX_HOOKS_JSON_PATH:-~/.codex/hooks.json}` にマージ
 - 同じ name または URL が存在しない場合だけ `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` に新しい `[mcp_servers.<name>]` block を追加
 
-`config.toml` または skill file を変更した後は Codex を再起動してください。
+Codex（2026+）は Claude Code と同じ hook JSON schema を共有するため、`Stop` hook も終了前に LLM Wiki を更新するよう一度だけ `decision=block` を emit します。`stop_hook_active=true` になると helper が再 block をスキップするので loop になりません。`config.toml`、`hooks.json`、または skill file を変更した後は Codex を再起動してください。
 
 ### Setup entrypoint option
 
@@ -211,6 +225,8 @@ Setup entrypoint は次の option をサポートします：
 --env-file PATH           # デフォルト: repository .env
 --server-url URL          # .env MCP URL resolution を override
 --server-name NAME        # デフォルト: Hermes/Codex は llm_wiki、Claude は llm-wiki
+--no-hooks                # input/stop hook scaffold installation を skip
+--claude-settings PATH    # hook を merge する Claude settings JSON
 ```
 
 Claude は `--scope local|user|project` もサポートします。Codex は `--config /path/to/config.toml` もサポートします。
@@ -221,9 +237,12 @@ Claude は `--scope local|user|project` もサポートします。Codex は `--
 
 - 書き込み前に `kb_search_notes` で既存 Markdown wiki page を検索する。
 - 直接ファイルアクセスまたは `kb_search_notes` snippet で `SCHEMA.md`、`index.md`、`log.md` を基準に orientation する。
+- 新しい vault にまだ `SCHEMA.md` がない場合、skill 内蔵の schema、page type、index、log、provenance ガイドで初期化する。
+- `kb_search_notes` は完全なファイル読み取りではなく snippet 検索として扱う。MCP-only mode では完全な現在の note body がない限り既存 note を更新しない。
 - `kb_write_note` を通じて完全な Markdown note を書き込む。
 - optimistic concurrency のため、返された `content_hash` を次の `if_hash` として使う。
 - raw source は immutable に保ち、durable wiki 変更では `index.md` と `log.md` を更新する。
+- インストールされた hook command を native hook、plugin、wrapper と一緒に使う。ユーザー入力時に compact wiki context を読み込み、agent 終了時に stop-time update pass を実行する。Claude Code と Codex は同じ `UserPromptSubmit`/`Stop` hook schema（in-loop `decision=block` 再プロンプト）を共有するため setup が自動で接続する。Hermes/Hermess は finalize 系の session hook しか提供しないため、plugin/wrapper や finalize hook に接続して out-of-loop の update pass を実行できるよう reusable script をインストールする。
 
 現在サーバーが公開している MCP tool は `kb_write_note` と `kb_search_notes` です。Vault/graph counters は REST `GET /metrics` endpoint で公開します。
 

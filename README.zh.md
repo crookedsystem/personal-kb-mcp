@@ -104,8 +104,8 @@ mcp_servers:
 
 1. 将 `.env.example` 复制为 `.env`，并为要运行的服务器设置 `KB_VAULT_PATH`、`KB_HOST`、`KB_PORT` 和 `KB_MCP_PATH`。
 2. 使用 `uv run llm-wiki` 运行 MCP 服务器。
-3. 运行 setup entrypoint。默认会安装所有支持的 agent；如只安装部分 agent，请传入 `--agent`。
-4. 重启 agent session，使 MCP tool 和 skill 重新加载。
+3. 运行 setup entrypoint。默认会安装所有支持的 agent；如只安装部分 agent，请传入 `--agent`。它也会安装 hook scaffold，让 user input 时的 context loading 与 stop-time wiki update pass 使用同一个 MCP server。
+4. 重启 agent session，使 MCP tool、skill 和 native hook/plugin 配置重新加载。
 
 ### Agent integration 文件
 
@@ -115,7 +115,7 @@ mcp_servers:
 | Claude Code | `mcp/claude.json` | `skills/llm-wiki/` | `uv run python scripts/main.py --agent claude` |
 | Codex | `mcp/codex.toml` | `skills/llm-wiki/` | `uv run python scripts/main.py --agent codex` |
 
-Setup entrypoint 是 `scripts/main.py`。不传 `--agent` 运行时，会一次安装 Hermes/Hermess、Claude Code 和 Codex。可复用代码位于 `scripts/setup_support/`，因此 env 读取、MCP URL 解析、skill 复制、重复检查和 Codex TOML 编辑都走同一套代码。
+Setup entrypoint 是 `scripts/main.py`。不传 `--agent` 运行时，会一次安装 Hermes/Hermess、Claude Code 和 Codex。可复用代码位于 `scripts/setup_support/`，因此 env 读取、MCP URL 解析、skill 复制、hook 安装、重复检查和 Codex TOML 编辑都走同一套代码。Runtime hook helper 位于 `scripts/agent_hooks/llm_wiki_agent_hook.py`。
 
 该 skill 有意保持 single-source：所有 agent 都安装同一个 `skills/llm-wiki/SKILL.md`。Agent-specific 差异只存在于 setup code，以及 skill 的 “Agent-specific MCP names” 部分。
 
@@ -137,6 +137,13 @@ MCP server name 解析顺序：
 2. `LLM_WIKI_MCP_SERVER_NAME`
 3. Agent 默认值：Hermes/Codex 为 `llm_wiki`，Claude Code 为 `llm-wiki`
 
+Hook setup 默认启用。若要禁用，请设置 `LLM_WIKI_INSTALL_HOOKS=false` 或传入 `--no-hooks`。生成的 hook script 使用同一个 helper 的两种 mode：
+
+- user input：查询 `kb_search_notes`，并输出给 model 的 compact `<llm-wiki-context>` block
+- stop/completion：要求 model 执行最后一次 MCP update pass，只写入 durable fact/decision/procedure，并在 content 变化时更新 `index.md`/`log.md`
+
+Hook 位置可通过 `HERMES_LLM_WIKI_HOOKS_DIR`、`CLAUDE_HOOKS_DIR`、`CLAUDE_SETTINGS_PATH`、`CODEX_LLM_WIKI_HOOKS_DIR`、`CODEX_HOOKS_JSON_PATH` 配置。
+
 ### 不覆盖已有 MCP config
 
 Setup 只在 server 缺失时添加：
@@ -156,6 +163,7 @@ uv run python scripts/main.py --agent hermes
 它会执行：
 
 - 将 `skills/llm-wiki/` 复制到 `${HERMES_HOME:-~/.hermes}/skills/llm-wiki/`
+- 将 reusable hook command 安装到 `${HERMES_LLM_WIKI_HOOKS_DIR:-${HERMES_HOME:-~/.hermes}/hooks/llm-wiki}/`
 - 仅当 `${LLM_WIKI_MCP_SERVER_NAME:-llm_wiki}` 缺失时添加到 Hermes MCP config
 - CLI 可用时运行 `hermes mcp test <server-name>`
 
@@ -170,8 +178,12 @@ uv run python scripts/main.py --agent claude
 它会执行：
 
 - 将 `skills/llm-wiki/` 复制到 `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/llm-wiki/`
+- 将 `llm-wiki-context-hook.sh` 和 `llm-wiki-stop-hook.sh` 安装到 `${CLAUDE_HOOKS_DIR:-~/.claude/hooks/llm-wiki}/`
+- 将 Claude Code `UserPromptSubmit` 与 `Stop` hook entry 合并到 `${CLAUDE_SETTINGS_PATH:-~/.claude/settings.json}`，且不重复添加
 - 仅当 `${LLM_WIKI_MCP_SERVER_NAME:-llm-wiki}` 缺失时，通过 `claude mcp add -s ${CLAUDE_MCP_SCOPE:-user} --transport http ...` 添加
 - CLI 可用时运行 `claude mcp get <server-name>`
+
+Claude `UserPromptSubmit` hook 会在 model 开始前输出 wiki context。`Stop` hook 会返回一次 block decision，要求 Claude 在结束前通过 MCP 更新 LLM Wiki；后续 stop event 的 `stop_hook_active=true` 不会再次 block，因此不会无限循环。
 
 第一次在项目中看到 project-scoped `.mcp.json` server 时，Claude 可能会要求你批准。
 
@@ -184,9 +196,11 @@ uv run python scripts/main.py --agent codex
 它会执行：
 
 - 将 `skills/llm-wiki/` 复制到 `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/`
+- 将 `llm-wiki-context-hook.sh` 和 `llm-wiki-stop-hook.sh` 安装到 `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/`
+- 将 Codex `UserPromptSubmit`/`Stop` hook 条目合并到 `${CODEX_HOOKS_JSON_PATH:-~/.codex/hooks.json}`，不重复已有条目
 - 仅当相同 name 或 URL 不存在时，向 `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` 追加新的 `[mcp_servers.<name>]` block
 
-修改 `config.toml` 或 skill 文件后，请重启 Codex。
+Codex（2026+）与 Claude Code 共享同一套 hook JSON schema，因此其 `Stop` hook 也会 emit 一次性的 `decision=block`，要求 agent 在结束前更新 LLM Wiki；当 `stop_hook_active=true` 时 helper 会跳过再次 block，因此不会形成 loop。修改 `config.toml`、`hooks.json` 或 skill 文件后，请重启 Codex。
 
 ### Setup entrypoint option
 
@@ -211,6 +225,8 @@ Setup entrypoint 支持：
 --env-file PATH           # 默认值: repository .env
 --server-url URL          # override .env MCP URL resolution
 --server-name NAME        # 默认值: Hermes/Codex 为 llm_wiki，Claude 为 llm-wiki
+--no-hooks                # 跳过 input/stop hook scaffold 安装
+--claude-settings PATH    # 要合并 hook 的 Claude settings JSON
 ```
 
 Claude 还支持 `--scope local|user|project`。Codex 还支持 `--config /path/to/config.toml`。
@@ -221,9 +237,12 @@ Claude 还支持 `--scope local|user|project`。Codex 还支持 `--config /path/
 
 - 写入前使用 `kb_search_notes` 搜索已有 Markdown wiki page。
 - 通过直接文件访问或 `kb_search_notes` snippet，基于 `SCHEMA.md`、`index.md` 和 `log.md` 进行 orientation。
+- 当新 vault 还没有 `SCHEMA.md` 时，使用 skill 内置的 schema、page type、index、log 和 provenance 指南进行初始化。
+- 将 `kb_search_notes` 视为 snippet 搜索，而不是完整文件读取；在 MCP-only mode 下，如果没有完整的当前 note body，不要更新已有 note。
 - 通过 `kb_write_note` 写入完整 Markdown note。
 - 使用返回的 `content_hash` 作为下一次 optimistic concurrency 的 `if_hash`。
 - 保持 raw source immutable，并在 durable wiki 变更时更新 `index.md` 与 `log.md`。
+- 使用已安装的 hook command，并通过 native hook、plugin 或 wrapper 接入：用户输入时加载 compact wiki context，agent 结束时运行 stop-time update pass。Claude Code 和 Codex 共享同一套 `UserPromptSubmit`/`Stop` hook schema（in-loop `decision=block` 再提示），因此由 setup 自动接好；Hermes/Hermess 只提供 finalize 类 session hook，因此 setup 会安装 reusable script，供你接入 plugin/wrapper 或 finalize hook 来运行 out-of-loop update pass。
 
 当前服务器暴露的 MCP tool 是 `kb_write_note` 和 `kb_search_notes`。Vault/graph counters 通过 REST `GET /metrics` endpoint 暴露。
 
