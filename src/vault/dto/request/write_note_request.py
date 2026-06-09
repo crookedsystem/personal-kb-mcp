@@ -1,10 +1,8 @@
-from dataclasses import dataclass
-
+from common.model import FrozenModel
 from vault.service.command.write_note_command import WriteNoteCommand
 
 
-@dataclass(frozen=True)
-class WriteNoteRequest:
+class WriteNoteRequest(FrozenModel):
     note_path: str
     content: str
     if_hash: str | None = None

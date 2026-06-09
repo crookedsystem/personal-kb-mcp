@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 from pathlib import Path
 
+from common.model import FrozenModel
 
-@dataclass(frozen=True)
-class WriteNoteResult:
+
+class WriteNoteResult(FrozenModel):
     path: Path
     source_hash: str
     content_hash: str

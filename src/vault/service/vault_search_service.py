@@ -1,6 +1,11 @@
-from dataclasses import dataclass, field
-from pathlib import Path
+from pydantic import Field
 
+from common.model import FrozenModel
+from vault.constant.search import (
+    FRONTMATTER_BOUNDARY,
+    MAX_SEARCH_LIMIT,
+    QUERY_TOKEN_PATTERN,
+)
 from vault.entity.vault_note import compute_sha256
 from vault.infrastructure.repository.vault_note_repository import (
     VaultNoteRepository,
@@ -13,20 +18,14 @@ from vault.service.result.search_notes_result import (
     NoteSearchResult,
     SearchNotesResult,
 )
-from vault.service.vault_search_constants import (
-    FRONTMATTER_BOUNDARY,
-    MAX_SEARCH_LIMIT,
-    QUERY_TOKEN_PATTERN,
-)
 from vault.service.vault_search_score_service import (
     VaultSearchScoreService,
 )
 
 
-@dataclass(frozen=True)
-class VaultSearchService:
+class VaultSearchService(FrozenModel):
     note_repository: VaultNoteRepository
-    score_service: VaultSearchScoreService = field(default_factory=VaultSearchScoreService)
+    score_service: VaultSearchScoreService = Field(default_factory=VaultSearchScoreService)
 
     def search_notes(self, command: SearchNotesCommand) -> SearchNotesResult:
         """Vault 안 Markdown note를 검색해 관련도순 result DTO로 반환합니다."""
@@ -64,17 +63,6 @@ class VaultSearchService:
             : search_command.limit
         ]
         return SearchNotesResult(query=search_command.query, count=len(results), results=results)
-
-
-def search_notes(
-    vault_root: Path,
-    query: str,
-    *,
-    limit: int = 10,
-    path_prefix: str | None = None,
-) -> SearchNotesResult:
-    command = SearchNotesCommand(query=query, limit=limit, path_prefix=path_prefix)
-    return VaultSearchService(VaultNoteRepository(vault_root)).search_notes(command)
 
 
 def _validate_search_command(command: SearchNotesCommand) -> SearchNotesCommand:

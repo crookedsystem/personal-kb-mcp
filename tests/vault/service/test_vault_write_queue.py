@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 
-from vault.service.vault_write_queue import VaultWriteQueue
+from vault.component.write_queue import VaultWriteQueue
 
 
 def test_write_queue는_동시_쓰기_요청을_하나씩_직렬화한다() -> None:

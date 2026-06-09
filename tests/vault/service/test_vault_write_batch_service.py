@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
+from vault.component.write_queue import VaultWriteQueue
 from vault.entity.vault_path import VaultPaths
+from vault.error.write_error import WriteConflictError
 from vault.service.command.write_note_command import WriteNoteCommand
-from vault.service.vault_write_errors import WriteConflictError
-from vault.service.vault_write_queue import VaultWriteQueue
 from vault.service.vault_write_service import VaultWriteService
 
 
@@ -14,11 +14,11 @@ def test_batch_write는_여러_note를_한_번에_작성한다(tmp_path: Path) -
     async def exercise_writer() -> None:
         # Given: 같은 vault에 작성할 두 개의 write command가 있다.
         writer = VaultWriteService(
-            VaultPaths(tmp_path / "vault"), VaultWriteQueue(), actor="tester"
+            paths=VaultPaths(root=tmp_path / "vault"), queue=VaultWriteQueue(), actor="tester"
         )
         commands = [
-            WriteNoteCommand("daily/one.md", "One"),
-            WriteNoteCommand("daily/two.md", "Two"),
+            WriteNoteCommand(note_path="daily/one.md", content="One"),
+            WriteNoteCommand(note_path="daily/two.md", content="Two"),
         ]
 
         # When: batch write를 실행한다.
@@ -36,9 +36,11 @@ def test_atomic_batch_write는_중간에_실패하면_작성된_파일을_롤백
     async def exercise_writer() -> None:
         # Given: 기존 note와 새 note 작성이 섞인 atomic batch command가 있다.
         writer = VaultWriteService(
-            VaultPaths(tmp_path / "vault"), VaultWriteQueue(), actor="tester"
+            paths=VaultPaths(root=tmp_path / "vault"), queue=VaultWriteQueue(), actor="tester"
         )
-        first_result = await writer.write_note(WriteNoteCommand("daily/existing.md", "Original"))
+        first_result = await writer.write_note(
+            WriteNoteCommand(note_path="daily/existing.md", content="Original")
+        )
         existing_path = first_result.path
         original_content = existing_path.read_text(encoding="utf-8")
         new_path = tmp_path / "vault" / "daily" / "new.md"
@@ -47,8 +49,12 @@ def test_atomic_batch_write는_중간에_실패하면_작성된_파일을_롤백
         with pytest.raises(WriteConflictError, match="stale if_hash"):
             await writer.batch_write_notes(
                 [
-                    WriteNoteCommand("daily/new.md", "New"),
-                    WriteNoteCommand("daily/existing.md", "Bad update", if_hash="stale"),
+                    WriteNoteCommand(note_path="daily/new.md", content="New"),
+                    WriteNoteCommand(
+                        note_path="daily/existing.md",
+                        content="Bad update",
+                        if_hash="stale",
+                    ),
                 ],
                 atomic=True,
             )

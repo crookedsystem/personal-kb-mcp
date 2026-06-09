@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import TypedDict, cast
 
 from common.config import Settings
-from vault.infrastructure.mcp_tools.mcp_server import create_mcp_server
+from common.runtime_registry import create_runtime
+from vault.infrastructure.mcp_tool.mcp_server import create_mcp_server
 
 
 class WriteNoteToolResult(TypedDict):
@@ -23,15 +24,17 @@ class SearchToolResult(TypedDict):
 
 def test_mcp_server는_기본_http_설정을_사용한다(tmp_path: Path) -> None:
     # Given: 기본 Settings로 MCP server를 생성한다.
-    server = create_mcp_server(Settings(host="127.0.0.1", vault_path=tmp_path / "vault"))
+    app_settings = Settings(host="127.0.0.1", vault_path=tmp_path / "vault")
+    runtime = create_runtime(app_settings)
+    server = create_mcp_server(app_settings, runtime.write_service, runtime.search_service)
 
     # When: FastMCP HTTP 설정을 조회한다.
-    settings = server.settings
+    server_settings = server.settings
 
     # Then: local-only host, 기본 port, streamable HTTP path가 적용된다.
-    assert settings.host == "127.0.0.1"
-    assert settings.port == 9999
-    assert settings.streamable_http_path == "/mcp"
+    assert server_settings.host == "127.0.0.1"
+    assert server_settings.port == 9999
+    assert server_settings.streamable_http_path == "/mcp"
 
 
 def test_mcp_server는_write와_search_tool만_노출하고_description을_제공한다(
@@ -40,7 +43,9 @@ def test_mcp_server는_write와_search_tool만_노출하고_description을_제�
     async def exercise_server() -> None:
         # Given: 임시 vault를 바라보는 MCP server가 있다.
         vault_root = tmp_path / "vault"
-        server = create_mcp_server(Settings(host="127.0.0.1", vault_path=vault_root))
+        settings = Settings(host="127.0.0.1", vault_path=vault_root)
+        runtime = create_runtime(settings)
+        server = create_mcp_server(settings, runtime.write_service, runtime.search_service)
 
         # When: 등록된 tool 목록을 조회하고 write/search tool을 호출한다.
         tools = await server.list_tools()

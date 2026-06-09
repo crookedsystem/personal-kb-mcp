@@ -1,15 +1,16 @@
-from dataclasses import dataclass, field
 from pathlib import Path
 
+from pydantic import Field
+
+from common.model import FrozenModel
 from vault.entity.vault_path import DEFAULT_DENIED_NAMES, VaultPathError
 
 
-@dataclass(frozen=True)
-class VaultNoteRepository:
+class VaultNoteRepository(FrozenModel):
     """Filesystem repository for Markdown notes stored under one vault root."""
 
     root: Path
-    denied_names: frozenset[str] = field(default_factory=lambda: DEFAULT_DENIED_NAMES)
+    denied_names: frozenset[str] = Field(default_factory=lambda: DEFAULT_DENIED_NAMES)
 
     @property
     def vault_root(self) -> Path:

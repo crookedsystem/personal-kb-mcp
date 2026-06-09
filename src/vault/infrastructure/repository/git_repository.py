@@ -1,10 +1,10 @@
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 
+from common.model import FrozenModel
 
-@dataclass(frozen=True)
-class GitRepository:
+
+class GitRepository(FrozenModel):
     """Small git adapter for committing changed vault paths."""
 
     root: Path

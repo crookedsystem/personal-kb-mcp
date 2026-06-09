@@ -1,5 +1,8 @@
-from dataclasses import dataclass, field
 from pathlib import Path
+
+from pydantic import Field
+
+from common.model import FrozenModel
 
 DEFAULT_DENIED_NAMES = frozenset({".git", ".obsidian", "node_modules", ".trash"})
 
@@ -8,12 +11,11 @@ class VaultPathError(ValueError):
     """Raised when a requested vault path is unsafe or unsupported."""
 
 
-@dataclass(frozen=True)
-class VaultPaths:
+class VaultPaths(FrozenModel):
     """Resolve user-provided note paths while keeping every path inside the vault."""
 
     root: Path
-    denied_names: frozenset[str] = field(default_factory=lambda: DEFAULT_DENIED_NAMES)
+    denied_names: frozenset[str] = Field(default_factory=lambda: DEFAULT_DENIED_NAMES)
 
     def resolve_note_path(self, note_path: str | Path) -> Path:
         relative_path = Path(note_path)

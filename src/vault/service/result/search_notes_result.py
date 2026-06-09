@@ -1,14 +1,14 @@
-from dataclasses import dataclass, field
+from pydantic import Field
+
+from common.model import FrozenModel
 
 
-@dataclass(frozen=True)
-class LineMatch:
+class LineMatch(FrozenModel):
     line: int
     snippet: str
 
 
-@dataclass(frozen=True)
-class NoteSearchResult:
+class NoteSearchResult(FrozenModel):
     path: str
     title: str | None
     page_type: str | None
@@ -18,22 +18,19 @@ class NoteSearchResult:
     matches: list[LineMatch]
 
 
-@dataclass(frozen=True)
-class SearchNotesResult:
+class SearchNotesResult(FrozenModel):
     query: str
     count: int
     results: list[NoteSearchResult]
 
 
-@dataclass(frozen=True)
-class FrontmatterMetadata:
+class FrontmatterMetadata(FrozenModel):
     title: str | None = None
     page_type: str | None = None
-    tags: list[str] = field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class NoteMetadata:
+class NoteMetadata(FrozenModel):
     title: str | None
     page_type: str | None
     tags: list[str]

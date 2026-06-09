@@ -17,7 +17,6 @@ Git으로 관리되는 Obsidian/Markdown 지식 베이스를 위한 개인용 MC
 - 작성된 note의 provenance trailer
 - `GET /metrics` REST endpoint에서 vault와 graph counter 통합 제공
 - `kb_search_notes` MCP tool을 통한 LLM Wiki Markdown 검색
-- `VectorIndex`와 `NullVectorIndex`를 통한 Vector DB 확장 지점
 
 ## 로컬 설정
 

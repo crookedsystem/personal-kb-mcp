@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, Request
 from mcp.server.fastmcp import FastMCP
 
 from common.config import Settings
-from runtime import Runtime, create_runtime
+from common.runtime_registry import Runtime, get_runtime
 from vault.dto.response.health_response import HealthResponse
 from vault.dto.response.metrics_response import (
     MetricsResponse,
@@ -16,12 +16,17 @@ from vault.dto.response.tool_response import JsonSchema, ToolResponse
 from vault.infrastructure.api.rest_error_handler import (
     register_error_handlers,
 )
-from vault.infrastructure.mcp_tools.mcp_server import create_mcp_server
+from vault.infrastructure.mcp_tool.mcp_server import create_mcp_server
 from vault.service.vault_inspection_service import VaultInspectionService
 
 
-def get_inspection_service(request: Request) -> VaultInspectionService:
-    runtime = cast(Runtime, request.app.state.runtime)
+def get_app_runtime(request: Request) -> Runtime:
+    return cast(Runtime, request.app.state.runtime)
+
+
+def get_inspection_service(
+    runtime: Annotated[Runtime, Depends(get_app_runtime)],
+) -> VaultInspectionService:
     return runtime.inspection_service
 
 
@@ -29,8 +34,12 @@ def get_mcp_server(request: Request) -> FastMCP[object]:
     return cast(FastMCP[object], request.app.state.mcp_server)
 
 
+def get_settings(request: Request) -> Settings:
+    return cast(Settings, request.app.state.settings)
+
+
 def create_fastapi_app(settings: Settings) -> FastAPI:
-    runtime = create_runtime(settings)
+    runtime = get_runtime(settings)
     mcp_server = create_mcp_server(
         settings,
         write_service=runtime.write_service,
@@ -50,6 +59,7 @@ def create_fastapi_app(settings: Settings) -> FastAPI:
         lifespan=lifespan,
     )
     register_error_handlers(app)
+    app.state.settings = settings
     app.state.runtime = runtime
     app.state.mcp_server = mcp_server
 
@@ -59,7 +69,7 @@ def create_fastapi_app(settings: Settings) -> FastAPI:
         summary="Health check",
         description="서버가 실행 중인지와 MCP mount path를 확인합니다.",
     )
-    def health() -> HealthResponse:
+    def health(settings: Annotated[Settings, Depends(get_settings)]) -> HealthResponse:
         return HealthResponse(status="ok", mcp_path=settings.mcp_path)
 
     @app.get(
@@ -88,7 +98,7 @@ def create_fastapi_app(settings: Settings) -> FastAPI:
     async def tools(
         mcp_server: Annotated[FastMCP[object], Depends(get_mcp_server)],
     ) -> list[ToolResponse]:
-        mcp_tools = await mcp_server.list_tools()
+        registered_tools = await mcp_server.list_tools()
         return [
             ToolResponse(
                 name=tool.name,
@@ -98,7 +108,7 @@ def create_fastapi_app(settings: Settings) -> FastAPI:
                     cast(JsonSchema, tool.outputSchema) if tool.outputSchema is not None else None
                 ),
             )
-            for tool in mcp_tools
+            for tool in registered_tools
         ]
 
     app.router.routes.extend(mcp_app.routes)

@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from vault.service.vault_inspection_service import inspect_vault
+from vault.infrastructure.repository.vault_note_repository import VaultNoteRepository
+from vault.service.vault_inspection_service import VaultInspectionService
 
 
 def test_vault_점검은_상태와_그래프_건강도와_메트릭을_함께_계산한다(tmp_path: Path) -> None:
@@ -11,7 +12,9 @@ def test_vault_점검은_상태와_그래프_건강도와_메트릭을_함께_�
     (vault_root / "daily" / "b.md").write_text("# B\n", encoding="utf-8")
 
     # When: vault 상태를 점검한다.
-    inspection = inspect_vault(vault_root)
+    inspection = VaultInspectionService(
+        note_repository=VaultNoteRepository(root=vault_root)
+    ).inspect_vault()
 
     # Then: note 수, link 수, broken link 수, orphan 수가 함께 보고된다.
     assert inspection.status.note_count == 2
@@ -33,7 +36,9 @@ def test_vault_점검은_거부된_디렉터리의_markdown을_무시한다(tmp_
     (vault_root / "visible.md").write_text("Visible", encoding="utf-8")
 
     # When: vault 상태를 점검한다.
-    inspection = inspect_vault(vault_root)
+    inspection = VaultInspectionService(
+        note_repository=VaultNoteRepository(root=vault_root)
+    ).inspect_vault()
 
     # Then: 거부된 디렉터리의 note는 수집 결과에서 제외된다.
     assert inspection.status.note_count == 1

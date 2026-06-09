@@ -1,10 +1,8 @@
-from dataclasses import dataclass
-
+from common.model import FrozenModel
 from vault.service.command.search_notes_command import SearchNotesCommand
 
 
-@dataclass(frozen=True)
-class SearchNotesRequest:
+class SearchNotesRequest(FrozenModel):
     query: str
     limit: int = 10
     path_prefix: str | None = None

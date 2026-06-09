@@ -17,7 +17,6 @@ Git 管理された Obsidian/Markdown ナレッジベース向けのプライベ
 - 書き込まれた note の provenance trailer
 - `GET /metrics` REST endpoint で vault と graph counters を統合して提供
 - `kb_search_notes` MCP tool による LLM Wiki Markdown 検索
-- `VectorIndex` と `NullVectorIndex` による Vector DB 拡張ポイント
 
 ## ローカル設定
 

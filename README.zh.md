@@ -17,7 +17,6 @@
 - 写入 note 的 provenance trailer
 - 通过 `GET /metrics` REST endpoint 合并提供 vault 与 graph counters
 - 通过 `kb_search_notes` MCP tool 搜索 LLM Wiki Markdown
-- 通过 `VectorIndex` 和 `NullVectorIndex` 提供 Vector DB 扩展点
 
 ## 本地设置
 

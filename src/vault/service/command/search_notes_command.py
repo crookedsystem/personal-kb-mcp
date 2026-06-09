@@ -1,8 +1,7 @@
-from dataclasses import dataclass
+from common.model import FrozenModel
 
 
-@dataclass(frozen=True)
-class SearchNotesCommand:
+class SearchNotesCommand(FrozenModel):
     query: str
     limit: int = 10
     path_prefix: str | None = None

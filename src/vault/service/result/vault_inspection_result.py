@@ -1,22 +1,19 @@
-from dataclasses import dataclass
+from common.model import FrozenModel
 
 
-@dataclass(frozen=True)
-class VaultStatus:
+class VaultStatus(FrozenModel):
     note_count: int
     total_bytes: int
     note_paths: list[str]
 
 
-@dataclass(frozen=True)
-class GraphHealth:
+class GraphHealth(FrozenModel):
     link_count: int
     broken_link_count: int
     orphan_count: int
 
 
-@dataclass(frozen=True)
-class MetricsSnapshot:
+class MetricsSnapshot(FrozenModel):
     vault_notes_total: int
     vault_bytes_total: int
     graph_links_total: int
@@ -24,8 +21,7 @@ class MetricsSnapshot:
     graph_orphans_total: int
 
 
-@dataclass(frozen=True)
-class VaultInspectionResult:
+class VaultInspectionResult(FrozenModel):
     status: VaultStatus
     graph: GraphHealth
     metrics: MetricsSnapshot

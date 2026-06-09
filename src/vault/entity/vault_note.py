@@ -1,13 +1,13 @@
-from dataclasses import dataclass
 from hashlib import sha256
 from typing import Final
+
+from common.model import FrozenModel
 
 FRONTMATTER_DELIMITER: Final = "---"
 PROVENANCE_PREFIX: Final = "<!-- kb-provenance:"
 
 
-@dataclass(frozen=True)
-class ParsedNote:
+class ParsedNote(FrozenModel):
     """Markdown note split into optional raw frontmatter and body text."""
 
     frontmatter: str | None

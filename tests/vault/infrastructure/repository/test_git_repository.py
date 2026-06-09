@@ -2,10 +2,10 @@ import asyncio
 import subprocess
 from pathlib import Path
 
+from vault.component.write_queue import VaultWriteQueue
 from vault.entity.vault_path import VaultPaths
 from vault.infrastructure.repository.git_repository import GitRepository
 from vault.service.command.write_note_command import WriteNoteCommand
-from vault.service.vault_write_queue import VaultWriteQueue
 from vault.service.vault_write_service import VaultWriteService
 
 
@@ -16,14 +16,16 @@ def test_git_repository가_연결된_note_작성은_commit_hash를_반환한다(
         vault_root.mkdir()
         subprocess.run(["git", "init"], cwd=vault_root, check=True, capture_output=True)
         writer = VaultWriteService(
-            VaultPaths(vault_root),
-            VaultWriteQueue(),
+            paths=VaultPaths(root=vault_root),
+            queue=VaultWriteQueue(),
             actor="tester",
-            git_repository=GitRepository(vault_root),
+            git_repository=GitRepository(root=vault_root),
         )
 
         # When: note를 작성한다.
-        result = await writer.write_note(WriteNoteCommand("daily/today.md", "Body text"))
+        result = await writer.write_note(
+            WriteNoteCommand(note_path="daily/today.md", content="Body text")
+        )
 
         # Then: 작성된 note는 git commit에 포함되고 40자리 commit hash가 반환된다.
         assert result.commit_hash is not None

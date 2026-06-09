@@ -17,7 +17,6 @@ Private MCP server for a Git-backed Obsidian/Markdown knowledge base.
 - Provenance trailer on written notes
 - REST metrics endpoint at `GET /metrics` combining vault and graph counters
 - LLM Wiki Markdown search through the `kb_search_notes` MCP tool
-- Vector DB extension point via `VectorIndex` and `NullVectorIndex`
 
 ## Local setup
 

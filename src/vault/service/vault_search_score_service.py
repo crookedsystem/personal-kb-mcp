@@ -1,12 +1,11 @@
-from dataclasses import dataclass
 from pathlib import Path
 
+from common.model import FrozenModel
+from vault.constant.search import SYNTHESIZED_PAGE_DIRS
 from vault.service.result.search_notes_result import NoteMetadata
-from vault.service.vault_search_constants import SYNTHESIZED_PAGE_DIRS
 
 
-@dataclass(frozen=True)
-class VaultSearchScoreService:
+class VaultSearchScoreService(FrozenModel):
     """검색어와 LLM Wiki 구조를 함께 반영해 note 검색 순위를 계산합니다."""
 
     def score_note(

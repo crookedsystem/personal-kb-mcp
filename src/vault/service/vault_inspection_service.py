@@ -1,7 +1,7 @@
 import re
-from dataclasses import dataclass
 from pathlib import Path
 
+from common.model import FrozenModel
 from vault.infrastructure.repository.vault_note_repository import (
     VaultNoteRepository,
 )
@@ -15,8 +15,7 @@ from vault.service.result.vault_inspection_result import (
 WIKI_LINK_PATTERN = re.compile(r"\[\[([^\]]+)\]\]")
 
 
-@dataclass(frozen=True)
-class VaultInspectionService:
+class VaultInspectionService(FrozenModel):
     note_repository: VaultNoteRepository
 
     def inspect_vault(self) -> VaultInspectionResult:
@@ -45,7 +44,7 @@ class VaultInspectionService:
         for note_path in note_paths:
             for raw_target in WIKI_LINK_PATTERN.findall(self.note_repository.read_note(note_path)):
                 link_count += 1
-                target_path = note_ids.get(_normalize_wiki_target(raw_target))
+                target_path = note_ids.get(self._normalize_wiki_target(raw_target))
                 if target_path is None:
                     broken_link_count += 1
                     continue
@@ -65,10 +64,5 @@ class VaultInspectionService:
             ids[note_path.stem] = note_path
         return ids
 
-
-def inspect_vault(vault_root: Path) -> VaultInspectionResult:
-    return VaultInspectionService(VaultNoteRepository(vault_root)).inspect_vault()
-
-
-def _normalize_wiki_target(raw_target: str) -> str:
-    return raw_target.split("|", 1)[0].split("#", 1)[0].strip()
+    def _normalize_wiki_target(self, raw_target: str) -> str:
+        return raw_target.split("|", 1)[0].split("#", 1)[0].strip()

@@ -1,26 +1,24 @@
-from dataclasses import dataclass
 from pathlib import Path
 
+from common.model import FrozenModel
+from vault.component.write_queue import VaultWriteQueue
 from vault.entity.vault_note import (
     append_provenance_trailer,
     compute_sha256,
 )
 from vault.entity.vault_path import VaultPaths
+from vault.error.write_error import WriteConflictError
 from vault.infrastructure.repository.git_repository import GitRepository
 from vault.service.command.write_note_command import WriteNoteCommand
 from vault.service.result.write_note_result import WriteNoteResult
-from vault.service.vault_write_errors import WriteConflictError
-from vault.service.vault_write_queue import VaultWriteQueue
 
 
-@dataclass(frozen=True)
-class _FileSnapshot:
+class _FileSnapshot(FrozenModel):
     path: Path
     content: str | None
 
 
-@dataclass(frozen=True)
-class VaultWriteService:
+class VaultWriteService(FrozenModel):
     paths: VaultPaths
     queue: VaultWriteQueue
     actor: str = "personal-kb-mcp"
@@ -95,7 +93,7 @@ class VaultWriteService:
                 continue
             seen_paths.add(resolved_path)
             content = resolved_path.read_text(encoding="utf-8") if resolved_path.exists() else None
-            snapshots.append(_FileSnapshot(resolved_path, content))
+            snapshots.append(_FileSnapshot(path=resolved_path, content=content))
         return snapshots
 
     def _restore_snapshots(self, snapshots: list[_FileSnapshot]) -> None:
