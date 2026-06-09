@@ -20,7 +20,7 @@ def create_mcp_server(
     search_service: VaultSearchService,
 ) -> FastMCP[object]:
     server: FastMCP[object] = FastMCP(
-        "personal-kb-mcp",
+        "llm-wiki",
         host=settings.host,
         port=settings.port,
         streamable_http_path=settings.mcp_path,

@@ -43,7 +43,7 @@ class RuntimeRegistry:
         write_service = VaultWriteService(
             paths=VaultPaths(root=vault_root),
             queue=write_queue,
-            actor="personal-kb-mcp",
+            actor="llm-wiki",
         )
         search_service = VaultSearchService(note_repository=note_repository)
         inspection_service = VaultInspectionService(note_repository=note_repository)

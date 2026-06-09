@@ -21,7 +21,7 @@ class _FileSnapshot(FrozenModel):
 class VaultWriteService(FrozenModel):
     paths: VaultPaths
     queue: VaultWriteQueue
-    actor: str = "personal-kb-mcp"
+    actor: str = "llm-wiki"
     git_repository: GitRepository | None = None
 
     async def write_note(self, command: WriteNoteCommand) -> WriteNoteResult:

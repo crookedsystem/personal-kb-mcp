@@ -54,7 +54,7 @@ def create_fastapi_app(settings: Settings) -> FastAPI:
             yield
 
     app = FastAPI(
-        title="personal-kb-mcp",
+        title="llm-wiki",
         description="개인 Markdown knowledge base를 MCP와 REST 문서 endpoint로 노출합니다.",
         lifespan=lifespan,
     )

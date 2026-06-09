@@ -1,8 +1,8 @@
-# Personal KB MCP
+# LLM Wiki MCP
 
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-Git 管理された Obsidian/Markdown ナレッジベース向けのプライベート MCP サーバーです。
+Git 管理された Obsidian/Markdown LLM Wiki vault 向けの MCP サーバーです。
 
 ## 現在の機能
 
@@ -27,17 +27,72 @@ cp .env.example .env
 
 `.env` を編集してください。特に `KB_VAULT_PATH` を設定します。
 
+### LLM Wiki vault の設定
+
+`llm-wiki` では 2 つのフォルダを分けて考えてください。
+
+`llm-wiki` repository はプログラムコードを置く Git repo です:
+
+```text
+/home/alice/projects/llm-wiki/
+├── src/        # server code
+├── tests/
+├── scripts/
+└── ...
+```
+
+`KB_VAULT_PATH` は実際の知識文書を保存する Markdown vault です:
+
+```text
+/home/alice/Obsidian/LLM Wiki/
+├── SCHEMA.md
+├── index.md
+├── log.md
+├── raw/
+├── entities/
+├── concepts/
+├── comparisons/
+└── queries/
+```
+
+`.env` では `KB_VAULT_PATH` を 2 つ目のフォルダに設定してください:
+
+```env
+KB_VAULT_PATH=/home/alice/Obsidian/LLM Wiki
+KB_HOST=127.0.0.1
+KB_PORT=9999
+KB_MCP_PATH=/mcp
+```
+
+`KB_VAULT_PATH` を `llm-wiki/src` や Obsidian の `.obsidian/` 設定フォルダにしてはいけません。`SCHEMA.md`, `index.md`, `log.md` が入っている vault root を指す必要があります。
+
+最も重要な区別はこれです:
+
+```text
+llm-wiki repository の src/    = server code
+KB_VAULT_PATH の raw/          = original/source material
+KB_VAULT_PATH の entities/...  = synthesized wiki pages
+```
+
+Agent は文書を作成・更新する前に `SCHEMA.md`, `index.md`, 最近の `log.md` を先に読む必要があります。
+
+### Obsidian 接続
+
+別の connector は不要です。Obsidian で **Open folder as vault** を使い、`KB_VAULT_PATH` と同じフォルダを開いてください。Obsidian と MCP server は同じ Markdown files を読み書きします。
+
+推奨設定は attachment folder を `raw/assets/` にし、Wikilinks を有効に保ち、YAML frontmatter query が必要なら Dataview plugin を入れることです。Obsidian Sync を使う場合も、この同じ vault folder を同期してください。
+
 ## 実行
 
 ```bash
-uv run personal-kb-mcp
+uv run llm-wiki
 ```
 
 Hermes MCP 設定例：
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
 ```
 
@@ -47,20 +102,20 @@ mcp_servers:
 
 想定 workflow は次のとおりです：
 
-1. `uv run personal-kb-mcp` で MCP サーバーを実行します。
+1. `uv run llm-wiki` で MCP サーバーを実行します。
 2. agent を `http://127.0.0.1:9999/mcp` に接続します。
-3. canonical `personal-kb-llm-wiki` skill をインストールし、agent が wiki convention を理解できるようにします。
+3. canonical `llm-wiki` skill をインストールし、agent が wiki convention を理解できるようにします。
 4. MCP tool と skill が再読み込みされるように agent session を再起動します。
 
 ### Agent integration 用に追加されたファイル
 
 | Agent | MCP snippet | Skill source | Setup script |
 | --- | --- | --- | --- |
-| Hermes/Hermess | `mcp/hermess.yaml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-hermess.sh` |
-| Claude Code | `mcp/claude.json` | `skills/personal-kb-llm-wiki/` | `scripts/setup-claude.sh` |
-| Codex | `mcp/codex.toml` | `skills/personal-kb-llm-wiki/` | `scripts/setup-codex.sh` |
+| Hermes/Hermess | `mcp/hermess.yaml` | `skills/llm-wiki/` | `scripts/setup-hermess.sh` |
+| Claude Code | `mcp/claude.json` | `skills/llm-wiki/` | `scripts/setup-claude.sh` |
+| Codex | `mcp/codex.toml` | `skills/llm-wiki/` | `scripts/setup-codex.sh` |
 
-この skill は意図的に single-source 構成です。すべての agent が同じ `skills/personal-kb-llm-wiki/SKILL.md` をインストールします。Agent-specific な違いは setup script と、skill 内の「Agent-specific MCP names」セクションにあります。
+この skill は意図的に single-source 構成です。すべての agent が同じ `skills/llm-wiki/SKILL.md` をインストールします。Agent-specific な違いは setup script と、skill 内の「Agent-specific MCP names」セクションにあります。
 
 ### Hermes/Hermess の設定
 
@@ -70,15 +125,15 @@ scripts/setup-hermess.sh
 
 実行内容：
 
-- `skills/personal-kb-llm-wiki/` を `${HERMES_HOME:-~/.hermes}/skills/personal-kb-llm-wiki/` にコピー
-- `hermes mcp add personal_kb --url http://127.0.0.1:9999/mcp` を実行
-- CLI が利用可能な場合は `hermes mcp test personal_kb` を実行
+- `skills/llm-wiki/` を `${HERMES_HOME:-~/.hermes}/skills/llm-wiki/` にコピー
+- `hermes mcp add llm_wiki --url http://127.0.0.1:9999/mcp` を実行
+- CLI が利用可能な場合は `hermes mcp test llm_wiki` を実行
 
 手動設定 equivalent：
 
 ```yaml
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
     timeout: 120
     connect_timeout: 30
@@ -94,16 +149,16 @@ scripts/setup-claude.sh
 
 実行内容：
 
-- `skills/personal-kb-llm-wiki/` を `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/personal-kb-llm-wiki/` にコピー
-- `claude mcp add -s user --transport http personal-kb http://127.0.0.1:9999/mcp` を実行
-- CLI が利用可能な場合は `claude mcp get personal-kb` を実行
+- `skills/llm-wiki/` を `${CLAUDE_SKILLS_DIR:-~/.claude/skills}/llm-wiki/` にコピー
+- `claude mcp add -s user --transport http llm-wiki http://127.0.0.1:9999/mcp` を実行
+- CLI が利用可能な場合は `claude mcp get llm-wiki` を実行
 
 Project-scoped `.mcp.json` の手動設定 equivalent：
 
 ```json
 {
   "mcpServers": {
-    "personal-kb": {
+    "llm-wiki": {
       "type": "http",
       "url": "http://127.0.0.1:9999/mcp",
       "timeout": 120000
@@ -122,13 +177,13 @@ scripts/setup-codex.sh
 
 実行内容：
 
-- `skills/personal-kb-llm-wiki/` を `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/personal-kb-llm-wiki/` にコピー
-- `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` に idempotent な `personal-kb-mcp` block を追加
+- `skills/llm-wiki/` を `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/` にコピー
+- `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` に idempotent な `llm-wiki` block を追加
 
 手動 `~/.codex/config.toml` 設定 equivalent：
 
 ```toml
-[mcp_servers.personal_kb]
+[mcp_servers.llm_wiki]
 url = "http://127.0.0.1:9999/mcp"
 startup_timeout_sec = 30
 tool_timeout_sec = 120
@@ -144,7 +199,7 @@ default_tools_approval_mode = "prompt"
 ```bash
 --dry-run                 # ファイル書き込みや agent config 変更をせず、実行予定の操作を表示
 --server-url URL          # デフォルト: http://127.0.0.1:9999/mcp
---server-name NAME        # デフォルト: Hermes/Codex は personal_kb、Claude は personal-kb
+--server-name NAME        # デフォルト: Hermes/Codex は llm_wiki、Claude は llm-wiki
 ```
 
 Claude は `--scope local|user|project` もサポートします。Codex は `--config /path/to/config.toml` もサポートします。
@@ -167,5 +222,5 @@ Claude は `--scope local|user|project` もサポートします。Codex は `--
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy src tests
-uv run pytest --cov=personal_kb_mcp --cov-fail-under=80
+uv run pytest --cov=src --cov-fail-under=80
 ```

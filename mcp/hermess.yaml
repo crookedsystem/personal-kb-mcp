@@ -1,7 +1,7 @@
 # Copy this block into ~/.hermes/config.yaml, or run scripts/setup-hermess.sh.
-# The MCP server must already be running with .venv/bin/personal-kb-mcp.
+# The MCP server must already be running with .venv/bin/llm-wiki.
 mcp_servers:
-  personal_kb:
+  llm_wiki:
     url: "http://127.0.0.1:9999/mcp"
     timeout: 120
     connect_timeout: 30

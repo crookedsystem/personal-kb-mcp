@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "personal-kb": {
+    "llm-wiki": {
       "type": "http",
       "url": "http://127.0.0.1:9999/mcp",
       "timeout": 120000
