@@ -142,7 +142,7 @@ Hook setup はデフォルトで有効です。無効にするには `LLM_WIKI_I
 - user input: `kb_search_notes` を query し、model 用の compact `<llm-wiki-context>` block を出力
 - stop/completion: 最後の MCP update pass を model に依頼し、durable fact/decision/procedure だけを書き、content 変更時に `index.md`/`log.md` を更新
 
-Hook location は `HERMES_LLM_WIKI_HOOKS_DIR`、`CLAUDE_HOOKS_DIR`、`CLAUDE_SETTINGS_PATH`、`CODEX_LLM_WIKI_HOOKS_DIR` で変更できます。
+Hook location は `HERMES_LLM_WIKI_HOOKS_DIR`、`CLAUDE_HOOKS_DIR`、`CLAUDE_SETTINGS_PATH`、`CODEX_LLM_WIKI_HOOKS_DIR`、`CODEX_HOOKS_JSON_PATH` で変更できます。
 
 ### 既存の MCP config は上書きしません
 
@@ -196,10 +196,11 @@ uv run python scripts/main.py --agent codex
 実行内容：
 
 - `skills/llm-wiki/` を `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/` にコピー
-- reusable hook command を `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/` にインストール
+- `llm-wiki-context-hook.sh` と `llm-wiki-stop-hook.sh` を `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/` にインストール
+- Codex `UserPromptSubmit`/`Stop` hook エントリを重複なく `${CODEX_HOOKS_JSON_PATH:-~/.codex/hooks.json}` にマージ
 - 同じ name または URL が存在しない場合だけ `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` に新しい `[mcp_servers.<name>]` block を追加
 
-`config.toml` または skill file を変更した後は Codex を再起動してください。
+Codex（2026+）は Claude Code と同じ hook JSON schema を共有するため、`Stop` hook も終了前に LLM Wiki を更新するよう一度だけ `decision=block` を emit します。`stop_hook_active=true` になると helper が再 block をスキップするので loop になりません。`config.toml`、`hooks.json`、または skill file を変更した後は Codex を再起動してください。
 
 ### Setup entrypoint option
 
@@ -241,7 +242,7 @@ Claude は `--scope local|user|project` もサポートします。Codex は `--
 - `kb_write_note` を通じて完全な Markdown note を書き込む。
 - optimistic concurrency のため、返された `content_hash` を次の `if_hash` として使う。
 - raw source は immutable に保ち、durable wiki 変更では `index.md` と `log.md` を更新する。
-- インストールされた hook command を native hook、plugin、wrapper と一緒に使う。ユーザー入力時に compact wiki context を読み込み、agent 終了時に stop-time update pass を実行する。Claude Code は setup が自動で接続し、Hermes/Hermess と Codex は Claude の JSON hook schema を共有しないため reusable script をインストールする。
+- インストールされた hook command を native hook、plugin、wrapper と一緒に使う。ユーザー入力時に compact wiki context を読み込み、agent 終了時に stop-time update pass を実行する。Claude Code と Codex は同じ `UserPromptSubmit`/`Stop` hook schema（in-loop `decision=block` 再プロンプト）を共有するため setup が自動で接続する。Hermes/Hermess は finalize 系の session hook しか提供しないため、plugin/wrapper や finalize hook に接続して out-of-loop の update pass を実行できるよう reusable script をインストールする。
 
 現在サーバーが公開している MCP tool は `kb_write_note` と `kb_search_notes` です。Vault/graph counters は REST `GET /metrics` endpoint で公開します。
 

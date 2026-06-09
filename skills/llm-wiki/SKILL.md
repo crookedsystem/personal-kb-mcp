@@ -355,20 +355,38 @@ Claude Code supports project/user hook events such as `UserPromptSubmit` and `St
 
 `llm-wiki-context-hook.sh` should read the incoming prompt metadata from stdin when the agent provides it, query `kb_search_notes` or a local helper for `SCHEMA.md`, `index.md`, recent `log.md`, and topic matches, then print a compact context block to stdout. Keep it short enough that it helps rather than flooding the prompt.
 
-`llm-wiki-stop-hook.sh` should read the session/transcript metadata available to the hook, decide what durable knowledge changed, then use `kb_search_notes` plus `kb_write_note` to update pages, `index.md`, and `log.md` with optimistic concurrency. The installed Claude stop hook emits a one-time `decision=block` response so Claude performs that update pass before its final stop; it must not block again when `stop_hook_active=true`.
+`llm-wiki-stop-hook.sh` should read the session/transcript metadata available to the hook, decide what durable knowledge changed, then use `kb_search_notes` plus `kb_write_note` to update pages, `index.md`, and `log.md` with optimistic concurrency. The installed Claude/Codex stop hook emits a one-time `decision=block` response so the agent performs that update pass before its final stop; it must not block again when `stop_hook_active=true`.
 
-### Hermes/Hermess and Codex enforcement pattern
+The two architectures for stop-time updates — **in-loop** (re-prompt the same session via `decision=block`) versus **out-of-loop** (a stop hook spawns a separate headless writer such as `claude -p` / `codex exec`) — and their trade-offs are compared in the vault concept page `[[concepts/agent-stop-hook-self-update]]`. This skill installs the in-loop variant for Claude Code and Codex; see the headless fallback note below for unattended setups.
 
-Do not paste Claude hook JSON into Hermes or Codex configs unless those clients explicitly support the same hook schema. Use the same contract through the client's native mechanism:
+### Codex enforcement pattern (native hooks)
 
-1. Ensure the `llm-wiki` skill and MCP server are installed for the agent.
-2. At user-input time, run a context loader that searches the wiki and injects a compact orientation block.
-3. At stop time, run an update pass that writes only durable knowledge and uses `content_hash`/`if_hash` for existing notes.
-4. If the client has no native user-input/stop hook, enforce this with a wrapper command, project instruction file, or client plugin that calls the same two scripts.
+Codex (2026+) shares Claude Code's hook JSON schema: the same `hooks` object, the same `UserPromptSubmit`/`Stop` event names, the same `{type, command, timeout}` shape, the same stdin payload (`transcript_path`, `stop_hook_active`, `last_assistant_message`), and the same `decision=block` + `reason` Stop semantics. So the Claude hook JSON ports directly — only the destination file differs.
 
-For Hermes/Hermess, setup installs this skill, configures the `llm_wiki` MCP server, and writes reusable hook commands under `${HERMES_LLM_WIKI_HOOKS_DIR:-${HERMES_HOME:-~/.hermes}/hooks/llm-wiki}/`. The minimum reliable setup is still to start sessions with the skill loaded or explicitly call `/skill llm-wiki`. For stricter automation, wire the generated context/stop scripts into a Hermes plugin, wrapper command, or future native hook support.
+Setup installs this skill under `$CODEX_HOME/skills/llm-wiki/`, configures `[mcp_servers.llm_wiki]`, writes the context/stop scripts under `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/`, and merges `UserPromptSubmit`/`Stop` entries into `${CODEX_HOOKS_JSON_PATH:-~/.codex/hooks.json}`. Codex also accepts an inline `[hooks]` table in `config.toml`. Equivalent `hooks.json`:
 
-For Codex, setup installs this skill under `$CODEX_HOME/skills/llm-wiki/`, configures `[mcp_servers.llm_wiki]`, and writes reusable hook commands under `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/`. Put the input/stop contract in project instructions, a wrapper, or native Codex hooks if they are available in your installation.
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "~/.codex/hooks/llm-wiki/llm-wiki-context-hook.sh", "timeout": 5 } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "~/.codex/hooks/llm-wiki/llm-wiki-stop-hook.sh", "timeout": 10 } ] }
+    ]
+  }
+}
+```
+
+### Hermes/Hermess enforcement pattern (out-of-loop)
+
+Hermes exposes only finalize-style session hooks (`on_session_start`/`on_session_end`/`on_session_finalize`/`subagent_stop`, plus `pre/post_tool_call`) declared in `cli-config.yaml`; it pipes a JSON payload to the hook on stdin and reads stdout JSON back. These finalize hooks do **not** support Claude-style `decision=block` re-prompting, so the in-loop pattern does not apply — use the **out-of-loop** model: a finalize hook triggers a separate update pass rather than re-running the same session.
+
+Setup installs this skill, configures the `llm_wiki` MCP server, and writes reusable hook commands under `${HERMES_LLM_WIKI_HOOKS_DIR:-${HERMES_HOME:-~/.hermes}/hooks/llm-wiki}/`. The minimum reliable setup is to start sessions with the skill loaded or call `/skill llm-wiki`; for automation, wire the generated context/stop scripts into a Hermes plugin, wrapper command, or finalize hook. Non-interactive runs (gateway, cron) must allow hooks with `--accept-hooks`, `HERMES_ACCEPT_HOOKS=1`, or the `hooks_auto_accept` config key.
+
+### Headless fallback (any client, unattended)
+
+When you must guarantee the update runs unattended, a stop/finalize hook can spawn a separate headless writer (`claude -p` or `codex exec`) instead of re-prompting in-loop. Three things are mandatory, or it silently no-ops: (1) the headless agent has no memory of the turn, so feed it the hook payload's `transcript_path`; (2) `claude -p --bare` skips the project MCP config and OAuth, so pass `--mcp-config` for `llm-wiki` plus a credential (`ANTHROPIC_API_KEY`/`apiKeyHelper`) or it will not have `kb_write_note`; (3) fully detach the process (`setsid`/`nohup`), since background tasks started during a `-p` run are killed shortly after it returns. See `[[concepts/agent-stop-hook-self-update]]` for the full comparison.
 
 ## Safety rules
 

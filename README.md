@@ -142,7 +142,7 @@ Hook setup is enabled by default. Set `LLM_WIKI_INSTALL_HOOKS=false` or pass `--
 - user input: query `kb_search_notes` and print a compact `<llm-wiki-context>` block for the model;
 - stop/completion: ask the model to do one final MCP update pass, writing only durable facts/decisions/procedures and updating `index.md`/`log.md` when content changes.
 
-Hook locations are configurable with `HERMES_LLM_WIKI_HOOKS_DIR`, `CLAUDE_HOOKS_DIR`, `CLAUDE_SETTINGS_PATH`, and `CODEX_LLM_WIKI_HOOKS_DIR`.
+Hook locations are configurable with `HERMES_LLM_WIKI_HOOKS_DIR`, `CLAUDE_HOOKS_DIR`, `CLAUDE_SETTINGS_PATH`, `CODEX_LLM_WIKI_HOOKS_DIR`, and `CODEX_HOOKS_JSON_PATH`.
 
 ### Existing MCP configs are not overwritten
 
@@ -196,10 +196,11 @@ uv run python scripts/main.py --agent codex
 What it does:
 
 - Copies `skills/llm-wiki/` to `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/`
-- Installs reusable hook commands under `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/`
+- Installs `llm-wiki-context-hook.sh` and `llm-wiki-stop-hook.sh` under `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/`
+- Merges Codex `UserPromptSubmit` and `Stop` hook entries into `${CODEX_HOOKS_JSON_PATH:-~/.codex/hooks.json}` without duplicating existing entries
 - Appends a new `[mcp_servers.<name>]` block to `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` only when the same name or URL is absent
 
-Restart Codex after changing `config.toml` or skill files.
+Codex (2026+) shares Claude Code's hook JSON schema, so its `Stop` hook also emits a one-time `decision=block` asking the agent to update LLM Wiki before it finishes; the helper skips re-blocking once `stop_hook_active=true`, so the hook does not loop. Restart Codex after changing `config.toml`, `hooks.json`, or skill files.
 
 ### Setup entrypoint options
 
@@ -241,7 +242,7 @@ The skill tells agents to:
 - Write complete Markdown notes through `kb_write_note`.
 - Use returned `content_hash` as the next `if_hash` for optimistic concurrency.
 - Keep raw sources immutable and update `index.md` plus `log.md` for durable wiki changes.
-- Use the installed hook commands with native hooks, plugins, or wrappers: load compact wiki context at user-input time and run a stop-time update pass after the agent finishes. Claude Code is wired automatically by setup; Hermes/Hermess and Codex get reusable scripts because they do not share Claude's JSON hook schema.
+- Use the installed hook commands with native hooks, plugins, or wrappers: load compact wiki context at user-input time and run a stop-time update pass after the agent finishes. Claude Code and Codex are wired automatically by setup because they share the same `UserPromptSubmit`/`Stop` hook schema (in-loop `decision=block` re-prompt). Hermes/Hermess exposes only finalize-style session hooks, so it gets reusable scripts to wire into a plugin/wrapper or finalize hook for an out-of-loop update pass.
 
 Current MCP tools exposed by the server are `kb_write_note` and `kb_search_notes`. Vault/graph counters are exposed through the REST `GET /metrics` endpoint.
 

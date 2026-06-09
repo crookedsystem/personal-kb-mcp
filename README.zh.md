@@ -142,7 +142,7 @@ Hook setup 默认启用。若要禁用，请设置 `LLM_WIKI_INSTALL_HOOKS=false
 - user input：查询 `kb_search_notes`，并输出给 model 的 compact `<llm-wiki-context>` block
 - stop/completion：要求 model 执行最后一次 MCP update pass，只写入 durable fact/decision/procedure，并在 content 变化时更新 `index.md`/`log.md`
 
-Hook 位置可通过 `HERMES_LLM_WIKI_HOOKS_DIR`、`CLAUDE_HOOKS_DIR`、`CLAUDE_SETTINGS_PATH`、`CODEX_LLM_WIKI_HOOKS_DIR` 配置。
+Hook 位置可通过 `HERMES_LLM_WIKI_HOOKS_DIR`、`CLAUDE_HOOKS_DIR`、`CLAUDE_SETTINGS_PATH`、`CODEX_LLM_WIKI_HOOKS_DIR`、`CODEX_HOOKS_JSON_PATH` 配置。
 
 ### 不覆盖已有 MCP config
 
@@ -196,10 +196,11 @@ uv run python scripts/main.py --agent codex
 它会执行：
 
 - 将 `skills/llm-wiki/` 复制到 `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/`
-- 将 reusable hook command 安装到 `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/`
+- 将 `llm-wiki-context-hook.sh` 和 `llm-wiki-stop-hook.sh` 安装到 `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/`
+- 将 Codex `UserPromptSubmit`/`Stop` hook 条目合并到 `${CODEX_HOOKS_JSON_PATH:-~/.codex/hooks.json}`，不重复已有条目
 - 仅当相同 name 或 URL 不存在时，向 `${CODEX_CONFIG_PATH:-~/.codex/config.toml}` 追加新的 `[mcp_servers.<name>]` block
 
-修改 `config.toml` 或 skill 文件后，请重启 Codex。
+Codex（2026+）与 Claude Code 共享同一套 hook JSON schema，因此其 `Stop` hook 也会 emit 一次性的 `decision=block`，要求 agent 在结束前更新 LLM Wiki；当 `stop_hook_active=true` 时 helper 会跳过再次 block，因此不会形成 loop。修改 `config.toml`、`hooks.json` 或 skill 文件后，请重启 Codex。
 
 ### Setup entrypoint option
 
@@ -241,7 +242,7 @@ Claude 还支持 `--scope local|user|project`。Codex 还支持 `--config /path/
 - 通过 `kb_write_note` 写入完整 Markdown note。
 - 使用返回的 `content_hash` 作为下一次 optimistic concurrency 的 `if_hash`。
 - 保持 raw source immutable，并在 durable wiki 变更时更新 `index.md` 与 `log.md`。
-- 使用已安装的 hook command，并通过 native hook、plugin 或 wrapper 接入：用户输入时加载 compact wiki context，agent 结束时运行 stop-time update pass。Claude Code 由 setup 自动接好；Hermes/Hermess 和 Codex 不共享 Claude 的 JSON hook schema，因此 setup 会安装 reusable script。
+- 使用已安装的 hook command，并通过 native hook、plugin 或 wrapper 接入：用户输入时加载 compact wiki context，agent 结束时运行 stop-time update pass。Claude Code 和 Codex 共享同一套 `UserPromptSubmit`/`Stop` hook schema（in-loop `decision=block` 再提示），因此由 setup 自动接好；Hermes/Hermess 只提供 finalize 类 session hook，因此 setup 会安装 reusable script，供你接入 plugin/wrapper 或 finalize hook 来运行 out-of-loop update pass。
 
 当前服务器暴露的 MCP tool 是 `kb_write_note` 和 `kb_search_notes`。Vault/graph counters 通过 REST `GET /metrics` endpoint 暴露。
 

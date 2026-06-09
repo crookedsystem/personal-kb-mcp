@@ -142,7 +142,7 @@ Hook setup은 기본으로 켜져 있습니다. 끄려면 `LLM_WIKI_INSTALL_HOOK
 - user input: `kb_search_notes`를 query하고 model에 줄 compact `<llm-wiki-context>` block 출력
 - stop/completion: model에게 마지막 MCP update pass를 요청해 durable fact/decision/procedure만 쓰고 content 변경 시 `index.md`/`log.md` 업데이트
 
-Hook 위치는 `HERMES_LLM_WIKI_HOOKS_DIR`, `CLAUDE_HOOKS_DIR`, `CLAUDE_SETTINGS_PATH`, `CODEX_LLM_WIKI_HOOKS_DIR`로 조정할 수 있습니다.
+Hook 위치는 `HERMES_LLM_WIKI_HOOKS_DIR`, `CLAUDE_HOOKS_DIR`, `CLAUDE_SETTINGS_PATH`, `CODEX_LLM_WIKI_HOOKS_DIR`, `CODEX_HOOKS_JSON_PATH`로 조정할 수 있습니다.
 
 ### 기존 MCP config는 덮어쓰지 않습니다
 
@@ -196,10 +196,11 @@ uv run python scripts/main.py --agent codex
 수행 내용:
 
 - `skills/llm-wiki/`를 `${CODEX_SKILLS_DIR:-${CODEX_HOME:-~/.codex}/skills}/llm-wiki/`로 복사
-- 재사용 가능한 hook command를 `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/` 아래에 설치
+- `llm-wiki-context-hook.sh`와 `llm-wiki-stop-hook.sh`를 `${CODEX_LLM_WIKI_HOOKS_DIR:-${CODEX_HOME:-~/.codex}/hooks/llm-wiki}/` 아래에 설치
+- Codex `UserPromptSubmit`/`Stop` hook 엔트리를 중복 없이 `${CODEX_HOOKS_JSON_PATH:-~/.codex/hooks.json}`에 병합
 - 같은 name 또는 URL이 없을 때만 `${CODEX_CONFIG_PATH:-~/.codex/config.toml}`에 새 `[mcp_servers.<name>]` block 추가
 
-`config.toml` 또는 skill file을 변경한 뒤에는 Codex를 재시작하세요.
+Codex(2026+)는 Claude Code와 동일한 hook JSON schema를 공유하므로, `Stop` hook도 종료 전에 LLM Wiki를 업데이트하라는 일회성 `decision=block`을 emit합니다. `stop_hook_active=true`가 되면 helper가 재차단을 건너뛰어 loop가 발생하지 않습니다. `config.toml`, `hooks.json`, 또는 skill file을 변경한 뒤에는 Codex를 재시작하세요.
 
 ### Setup entrypoint option
 
@@ -241,7 +242,7 @@ Skill은 agent에게 다음을 지시합니다:
 - `kb_write_note`를 통해 완전한 Markdown note 작성
 - optimistic concurrency를 위해 반환된 `content_hash`를 다음 `if_hash`로 사용
 - raw source는 immutable하게 유지하고 durable wiki 변경 시 `index.md`와 `log.md` 업데이트
-- 설치된 hook command를 native hook, plugin, wrapper와 함께 사용: 사용자 input 시점에는 compact wiki context를 로드하고, agent 종료 시점에는 stop-time update pass 실행. Claude Code는 setup이 자동으로 연결하고, Hermes/Hermess와 Codex는 Claude JSON hook schema를 공유하지 않으므로 재사용 script를 설치합니다.
+- 설치된 hook command를 native hook, plugin, wrapper와 함께 사용: 사용자 input 시점에는 compact wiki context를 로드하고, agent 종료 시점에는 stop-time update pass 실행. Claude Code와 Codex는 동일한 `UserPromptSubmit`/`Stop` hook schema(in-loop `decision=block` 재프롬프트)를 공유하므로 setup이 자동으로 연결합니다. Hermes/Hermess는 finalize 계열 session hook만 제공하므로, plugin/wrapper나 finalize hook에 연결해 out-of-loop update pass를 돌리도록 재사용 script를 설치합니다.
 
 현재 서버가 노출하는 MCP tool은 `kb_write_note`, `kb_search_notes`입니다. Vault/graph counter는 REST `GET /metrics` endpoint로 제공합니다.
 
