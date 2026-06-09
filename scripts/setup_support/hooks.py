@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from prompts.installer import HOOK_SCRIPT_TEMPLATE, HOOKS_README_TEMPLATE
+
 from setup_support.config import ResolvedConfig
 
 CONTEXT_HOOK_NAME = "llm-wiki-context-hook.sh"
@@ -84,30 +86,18 @@ def render_hook_script(
     extra_args: list[str] | None = None,
 ) -> str:
     helper = config.repo_root / "scripts" / "agent_hooks" / "llm_wiki_agent_hook.py"
-    quoted_repo = shlex.quote(str(config.repo_root))
-    quoted_helper = shlex.quote(str(helper))
-    quoted_server_name = shlex.quote(config.server_name)
-    quoted_server_url = shlex.quote(config.server_url)
-    quoted_mode = shlex.quote(mode)
     rendered_extra = " ".join(shlex.quote(arg) for arg in (extra_args or []))
     if rendered_extra:
         rendered_extra = f" {rendered_extra}"
 
-    return f"""#!/usr/bin/env bash
-set -euo pipefail
-
-if [ -z "${{LLM_WIKI_MCP_SERVER_NAME:-}}" ]; then
-  LLM_WIKI_MCP_SERVER_NAME={quoted_server_name}
-fi
-if [ -z "${{LLM_WIKI_MCP_URL:-}}" ]; then
-  LLM_WIKI_MCP_URL={quoted_server_url}
-fi
-export LLM_WIKI_MCP_SERVER_NAME LLM_WIKI_MCP_URL
-
-exec uv --project {quoted_repo} run python {quoted_helper} {quoted_mode} \\
-  --server-name "$LLM_WIKI_MCP_SERVER_NAME" \\
-  --server-url "$LLM_WIKI_MCP_URL"{rendered_extra} "$@"
-"""
+    return HOOK_SCRIPT_TEMPLATE.format(
+        server_name=shlex.quote(config.server_name),
+        server_url=shlex.quote(config.server_url),
+        repo_root=shlex.quote(str(config.repo_root)),
+        helper=shlex.quote(str(helper)),
+        mode=shlex.quote(mode),
+        extra=rendered_extra,
+    )
 
 
 def write_hooks_readme(
@@ -118,28 +108,15 @@ def write_hooks_readme(
 ) -> None:
     readme = hooks_dir / "README.md"
     readme.write_text(
-        f"""# LLM Wiki agent hooks
-
-Installed by `uv run python scripts/main.py --agent {config.agent}` from:
-
-`{config.repo_root}`
-
-## Commands
-
-- User input context loader: `{context_hook}`
-- Stop/update enforcer: `{stop_hook}`
-
-The context hook queries `{config.server_name}` at `{config.server_url}` with `kb_search_notes`
-and prints a compact orientation block.
-
-The stop hook asks the agent to run a final LLM Wiki update pass through MCP before it finishes.
-It should write only durable facts/decisions/procedures, update `index.md`/`log.md` when
-content changes, and use `content_hash` as `if_hash` for safe updates.
-
-Claude Code user-level setup is merged into `{config.claude_settings_path}` when `--agent claude`
-is used. Hermes/Hermess and Codex do not share Claude's JSON hook schema; wire these scripts into
-the client's native hook/plugin/wrapper mechanism when available.
-""",
+        HOOKS_README_TEMPLATE.format(
+            agent=config.agent,
+            repo_root=config.repo_root,
+            context_hook=context_hook,
+            stop_hook=stop_hook,
+            server_name=config.server_name,
+            server_url=config.server_url,
+            claude_settings_path=config.claude_settings_path,
+        ),
         encoding="utf-8",
     )
 

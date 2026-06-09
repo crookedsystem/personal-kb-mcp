@@ -9,22 +9,36 @@ import re
 import sys
 from collections.abc import Mapping, Sequence
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
+
+# When invoked directly as a script (e.g. `python scripts/agent_hooks/llm_wiki_agent_hook.py`),
+# sys.path[0] is this file's directory, so the sibling `prompts` package under `scripts/` is not
+# importable. Put `scripts/` on the path so the import below works regardless of invocation.
+_SCRIPTS_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from prompts.agent_hook import (  # noqa: E402 - import follows the sys.path bootstrap above
+    CONTEXT_BLOCK_CLOSE,
+    CONTEXT_BLOCK_OPEN,
+    CONTEXT_EMPTY_TEMPLATE,
+    CONTEXT_ERROR_TEMPLATE,
+    CONTEXT_FOOTER,
+    CONTEXT_HEADER_TEMPLATE,
+    CONTEXT_RESULTS_INTRO,
+    STOP_UPDATE_REASON,
+)
 
 DEFAULT_LIMIT = 5
 
-STOP_UPDATE_REASON = """Run the LLM Wiki update pass before stopping.
-
-Use the configured llm-wiki MCP server to:
-1. search `SCHEMA.md`, `index.md`, recent `log.md`, and any affected entity/concept pages;
-2. write only durable facts, decisions, relationships, reusable procedures, or open questions;
-3. skip content-page writes when this turn produced no durable knowledge;
-4. update `index.md` and append a compact `log.md` entry for any durable wiki change;
-5. use returned `content_hash` values as `if_hash` when updating existing notes.
-
-Do not copy private transcripts wholesale into the wiki. Summarize only durable knowledge,
-then stop normally.
-"""
+__all__ = [
+    "STOP_UPDATE_REASON",
+    "extract_prompt",
+    "format_context_block",
+    "format_context_error",
+    "main",
+]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -206,31 +220,22 @@ def call_tool_result_to_dict(result: Any) -> dict[str, Any]:
 
 
 def format_context_error(server_name: str, server_url: str, exc: Exception) -> str:
-    return (
-        "<llm-wiki-context>\n"
-        f"LLM Wiki MCP context load failed for `{server_name}` at `{server_url}`: "
-        f"{type(exc).__name__}. Continue without inventing wiki contents; "
-        "use MCP tools later if needed.\n"
-        "</llm-wiki-context>"
+    return CONTEXT_ERROR_TEMPLATE.format(
+        server_name=server_name,
+        server_url=server_url,
+        error_type=type(exc).__name__,
     )
 
 
 def format_context_block(server_name: str, server_url: str, payload: Mapping[str, Any]) -> str:
     results = payload.get("results")
     if not isinstance(results, list) or not results:
-        return (
-            "<llm-wiki-context>\n"
-            f"MCP server: `{server_name}` ({server_url})\n"
-            "No matching LLM Wiki notes were found for this prompt. "
-            "Before creating pages, search again for specific entities/concepts "
-            "and follow the `llm-wiki` skill's schema/index/log rules.\n"
-            "</llm-wiki-context>"
-        )
+        return CONTEXT_EMPTY_TEMPLATE.format(server_name=server_name, server_url=server_url)
 
     lines = [
-        "<llm-wiki-context>",
-        f"MCP server: `{server_name}` ({server_url})",
-        "Relevant existing wiki notes from `kb_search_notes`:",
+        CONTEXT_BLOCK_OPEN,
+        CONTEXT_HEADER_TEMPLATE.format(server_name=server_name, server_url=server_url),
+        CONTEXT_RESULTS_INTRO,
     ]
     for result in results[:DEFAULT_LIMIT]:
         if not isinstance(result, Mapping):
@@ -256,13 +261,7 @@ def format_context_block(server_name: str, server_url: str, payload: Mapping[str
             if snippet:
                 lines.append(f"  - L{line}: {snippet[:240]}")
 
-    lines.extend(
-        [
-            "Use this as orientation only. For updates, retrieve the full current note body "
-            "when available, then write complete Markdown via `kb_write_note` with `if_hash`.",
-            "</llm-wiki-context>",
-        ]
-    )
+    lines.extend([CONTEXT_FOOTER, CONTEXT_BLOCK_CLOSE])
     return "\n".join(lines)
 
 
