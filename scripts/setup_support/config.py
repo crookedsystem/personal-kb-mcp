@@ -81,7 +81,7 @@ def _clean_env_value(value: str) -> str:
 
 def load_env(env_file: Path, process_env: Mapping[str, str] | None = None) -> dict[str, str]:
     merged = parse_env_file(env_file)
-    merged.update(dict(process_env or os.environ))
+    merged.update(dict(os.environ if process_env is None else process_env))
     return merged
 
 

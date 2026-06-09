@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pytest import MonkeyPatch
 from setup_support.codex_config import add_codex_mcp_server
 from setup_support.config import build_server_url, load_env, resolve_config
 
@@ -23,6 +24,21 @@ def test_load_env는_dotenv를_읽고_process_env가_우선한다(tmp_path: Path
     assert values["KB_MCP_PATH"] == "/mcp"
     assert values["LLM_WIKI_MCP_URL"] == "http://from-file:9999/mcp"
     assert values["CLAUDE_SKILLS_DIR"] == "/tmp/claude-skills"
+
+
+def test_load_env는_빈_process_env가_shell_env를_무시한다(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("KB_PORT=9999\n", encoding="utf-8")
+    monkeypatch.setenv("KB_PORT", "18083")
+    monkeypatch.setenv("CODEX_HOME", "/opt/codex")
+
+    values = load_env(env_file, process_env={})
+
+    assert values["KB_PORT"] == "9999"
+    assert "CODEX_HOME" not in values
 
 
 def test_build_server_url은_dotenv의_host_port_path를_사용한다() -> None:
