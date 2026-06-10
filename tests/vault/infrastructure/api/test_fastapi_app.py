@@ -81,7 +81,7 @@ def test_fastapi_app은_tools_endpoint에서_mcp_tool_schema를_문서화한다(
     reconcile_taxonomy = next(tool for tool in tools if tool["name"] == "kb_reconcile_taxonomy")
     assert "complete Markdown note" in write_note["description"]
     assert "Search Markdown notes" in search_notes["description"]
-    assert "orientation bundle" in wiki_context["description"]
+    assert "context bundle" in wiki_context["description"]
     assert "Validate the configured LLM Wiki vault" in validate_vault["description"]
     assert "taxonomy reconciliation" in reconcile_taxonomy["description"]
     assert write_note["inputSchema"]["type"] == "object"

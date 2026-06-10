@@ -17,7 +17,7 @@ MCP server for a Git-backed Obsidian/Markdown LLM Wiki vault.
 - Provenance trailer on synthesized/meta written notes
 - REST metrics endpoint at `GET /metrics` combining vault and graph counters
 - LLM Wiki Markdown search through the `kb_search_notes` MCP tool
-- Schema-first orientation through `kb_wiki_context`
+- Schema-first wiki map, link issue candidates, and update suggestions through `kb_wiki_context`
 - Vault schema validation through `kb_validate_vault`
 - Deterministic tag taxonomy reconciliation through `kb_reconcile_taxonomy`
 - Schema-enforced writes through `kb_write_note`, including raw note metadata and body-only sha256 checks

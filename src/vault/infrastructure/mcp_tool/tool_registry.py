@@ -60,8 +60,9 @@ def register_vault_tools(
 
     @server.tool(
         description=(
-            "Return an orientation bundle for schema-first LLM Wiki work: SCHEMA.md, "
-            "index.md, recent log.md lines, parsed frontmatter/tag rules, and schema health."
+            "Return a context bundle for schema-first LLM Wiki work: SCHEMA.md, index.md, "
+            "recent log.md lines, parsed frontmatter/tag rules, page/link map, issue "
+            "candidates, and update suggestions."
         )
     )
     def kb_wiki_context(

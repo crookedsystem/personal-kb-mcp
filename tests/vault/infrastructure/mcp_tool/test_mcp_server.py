@@ -119,7 +119,7 @@ contested: false
         }
         assert "complete Markdown note" in (tool_by_name["kb_write_note"].description or "")
         assert "Search Markdown notes" in (tool_by_name["kb_search_notes"].description or "")
-        assert "orientation bundle" in (tool_by_name["kb_wiki_context"].description or "")
+        assert "context bundle" in (tool_by_name["kb_wiki_context"].description or "")
         assert structured_write_result["source_hash"]
         results = structured_search_result["results"]
         assert structured_search_result["count"] == 1
@@ -127,6 +127,10 @@ contested: false
         assert results[0]["content_hash"] == structured_write_result["content_hash"]
         assert "schema" in structured_context
         assert cast(dict[str, Any], structured_context["health"])["schema_parse_ok"] is True
+        context_map = cast(dict[str, Any], structured_context["wiki_map"])
+        assert context_map["pages_by_type"] == {"concept": ["concepts/agent-memory.md"]}
+        assert "issue_candidates" in structured_context
+        assert "update_suggestions" in structured_context
         assert cast(dict[str, Any], structured_validation["summary"])["issue_count"] == 0
 
     asyncio.run(exercise_server())

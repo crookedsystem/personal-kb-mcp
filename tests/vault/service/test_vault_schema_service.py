@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from vault.entity.vault_note import compute_sha256
 from vault.infrastructure.repository.vault_note_repository import VaultNoteRepository
 from vault.service.vault_schema_service import VaultSchemaService
 
@@ -19,6 +20,47 @@ Allowed `type` values: `entity`, `concept`, `comparison`, `query`, `summary`.
 def _write_schema(vault_root: Path, schema: str = SCHEMA) -> None:
     vault_root.mkdir(parents=True, exist_ok=True)
     (vault_root / "SCHEMA.md").write_text(schema, encoding="utf-8")
+
+
+def _write_raw_note(path: Path, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"""---
+source_url: test://{path.stem}
+ingested: 2026-06-10
+sha256: {compute_sha256(body)}
+---
+{body}""",
+        encoding="utf-8",
+    )
+
+
+def _write_synthesized_note(
+    path: Path,
+    *,
+    title: str,
+    page_type: str,
+    tags: list[str],
+    sources: list[str],
+    body: str,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tags_text = ", ".join(tags)
+    sources_text = ", ".join(sources)
+    path.write_text(
+        f"""---
+title: {title}
+created: 2026-06-10
+updated: 2026-06-10
+type: {page_type}
+tags: [{tags_text}]
+sources: [{sources_text}]
+confidence: medium
+contested: false
+---
+{body}""",
+        encoding="utf-8",
+    )
 
 
 def test_validate_write_rejects_invalid_synthesized_frontmatter(tmp_path: Path) -> None:
@@ -159,6 +201,80 @@ def test_wiki_context_returns_schema_index_recent_log_and_health(tmp_path: Path)
     ]
     assert context.health.schema_parse_ok is True
     assert context.health.unknown_tag_count == 0
+
+
+def test_wiki_context_surfaces_map_link_issues_and_update_suggestions(
+    tmp_path: Path,
+) -> None:
+    # Given: 연결이 일부 끊긴 synthesized page들과 미반영 raw source가 있는 vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    (vault_root / "index.md").write_text(
+        "# Wiki Index\n\n## Concepts\n- [[agent-memory]] - Agent memory overview\n",
+        encoding="utf-8",
+    )
+    (vault_root / "log.md").write_text("# Wiki Log\n", encoding="utf-8")
+    _write_raw_note(vault_root / "raw" / "articles" / "karpathy.md", "Karpathy body\n")
+    _write_raw_note(vault_root / "raw" / "articles" / "unused.md", "Unused raw body\n")
+    _write_synthesized_note(
+        vault_root / "concepts" / "agent-memory.md",
+        title="Agent Memory",
+        page_type="concept",
+        tags=["agent-memory"],
+        sources=["raw/articles/karpathy.md"],
+        body="# Agent Memory\n\nConnects to [[hermes-agent]] and [[missing-page]].\n",
+    )
+    _write_synthesized_note(
+        vault_root / "entities" / "hermes-agent.md",
+        title="Hermes Agent",
+        page_type="entity",
+        tags=["mcp"],
+        sources=["raw/articles/karpathy.md"],
+        body="# Hermes Agent\n\nNo backlink yet.\n",
+    )
+    _write_synthesized_note(
+        vault_root / "concepts" / "orphan-topic.md",
+        title="Orphan Topic",
+        page_type="concept",
+        tags=["verification"],
+        sources=["raw/articles/karpathy.md"],
+        body="# Orphan Topic\n\nNo cross-links yet.\n",
+    )
+
+    # When: MCP context-first workflow용 context를 만든다.
+    context = VaultSchemaService(
+        note_repository=VaultNoteRepository(root=vault_root)
+    ).wiki_context()
+
+    # Then: LLM은 현재 page map, link/consistency issue 후보, 업데이트 제안을 함께 받는다.
+    assert context.wiki_map.pages_by_type == {
+        "concept": ["concepts/agent-memory.md", "concepts/orphan-topic.md"],
+        "entity": ["entities/hermes-agent.md"],
+    }
+    assert context.wiki_map.raw_sources == [
+        "raw/articles/karpathy.md",
+        "raw/articles/unused.md",
+    ]
+    pages = {page.path: page for page in context.wiki_map.pages}
+    assert pages["concepts/agent-memory.md"].outbound_links == ["entities/hermes-agent.md"]
+    assert pages["entities/hermes-agent.md"].inbound_links == ["concepts/agent-memory.md"]
+    issue_codes = {issue.code for issue in context.issue_candidates}
+    assert {
+        "broken_wikilink",
+        "missing_backlink",
+        "orphan_page",
+        "underlinked_page",
+        "unindexed_page",
+        "raw_source_without_synthesis",
+    }.issubset(issue_codes)
+    suggestions = {
+        (suggestion.action, suggestion.path) for suggestion in context.update_suggestions
+    }
+    assert ("repair_wikilink", "concepts/agent-memory.md") in suggestions
+    assert ("add_backlink", "entities/hermes-agent.md") in suggestions
+    assert ("connect_or_archive_page", "concepts/orphan-topic.md") in suggestions
+    assert ("add_index_entry", "entities/hermes-agent.md") in suggestions
+    assert ("synthesize_or_link_raw_source", "raw/articles/unused.md") in suggestions
 
 
 def test_reconcile_taxonomy_supports_dry_run_then_schema_apply(tmp_path: Path) -> None:

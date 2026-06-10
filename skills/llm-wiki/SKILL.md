@@ -21,7 +21,7 @@ The underlying server exposes these tool names:
 
 - `kb_write_note(note_path, content, if_hash?)` — write a complete note inside the configured vault. It enforces the vault schema before writing. Existing notes require optimistic concurrency.
 - `kb_search_notes(query, limit?, path_prefix?)` — search the Markdown LLM Wiki vault and return ranked paths, titles, page types, tags, content hashes, and line snippets.
-- `kb_wiki_context(recent_log_lines?, include_schema_rules?, include_index?)` — return the schema-first orientation bundle: `SCHEMA.md`, `index.md`, recent `log.md`, parsed allowed types/tags/frontmatter rules, and current schema health.
+- `kb_wiki_context(recent_log_lines?, include_schema_rules?, include_index?)` — return the schema-first context bundle: `SCHEMA.md`, `index.md`, recent `log.md`, parsed rules, current page/link map, issue candidates, and update suggestions.
 - `kb_validate_vault(include_raw?)` — validate deterministic schema hygiene across the vault: frontmatter, required fields, path/type consistency, tag taxonomy, raw metadata, and raw body hashes.
 - `kb_reconcile_taxonomy(apply?, decisions?)` — dry-run or apply deterministic tag taxonomy repair. Use it for tag add/rename/remove decisions, not for content migration.
 
@@ -53,12 +53,15 @@ queries/         # valuable answered questions worth preserving
 ## First actions in a session
 
 1. Confirm the MCP server is connected by listing tools or calling `kb_wiki_context`.
-2. Start every wiki task with `kb_wiki_context` when it is available. Treat the returned `parsed_schema` as the write contract, not as background documentation.
+2. Start every wiki task with `kb_wiki_context` when it is available. Treat the returned `parsed_schema` as the write contract, not as background documentation, and treat `wiki_map`, `issue_candidates`, and `update_suggestions` as the first-pass graph maintenance backlog.
 3. Use `parsed_schema.required_synthesized_frontmatter`, `parsed_schema.allowed_types`, and `parsed_schema.tag_taxonomy` before creating or updating pages. Do not invent page types or tags.
-4. Check `index` and recent `log` from `kb_wiki_context` before creating a page. Update existing pages instead of duplicating them, and avoid repeating recent work.
-5. If `health` reports schema errors, fix deterministic hygiene with `kb_validate_vault`/`kb_reconcile_taxonomy` before creating new synthesized content.
-6. Search for existing topic pages with `kb_search_notes` before creating new ones. Avoid duplicate entity or concept pages.
-7. Decide the access mode:
+4. Use `wiki_map.pages`, `wiki_map.pages_by_type`, and `wiki_map.link_graph` to choose whether to update an existing entity/concept, add links, or create a new page.
+5. Review `issue_candidates` before writing. Prefer fixing broken wikilinks, missing backlinks, orphan/underlinked pages, unindexed pages, and raw sources without synthesis when they are relevant to the user's task.
+6. Use `update_suggestions` as suggested actions, not blind commands. Apply only suggestions that improve durable wiki structure.
+7. Check `index` and recent `log` from `kb_wiki_context` before creating a page. Update existing pages instead of duplicating them, and avoid repeating recent work.
+8. If `health` reports schema errors, fix deterministic hygiene with `kb_validate_vault`/`kb_reconcile_taxonomy` before creating new synthesized content.
+9. Search for existing topic pages with `kb_search_notes` before creating new ones. Avoid duplicate entity or concept pages.
+10. Decide the access mode:
    - **File-readable mode:** safe to update existing notes because you can read the complete current file, reconstruct it, and pass the exact current `content_hash` as `if_hash`.
    - **MCP-only mode:** `kb_search_notes` returns snippets, not full note bodies. Do not overwrite an existing note from snippets alone. Create new notes only, or ask the user for the full current note content before updating.
 
@@ -274,12 +277,21 @@ When LLM Wiki MCP tools are available, start every wiki task with `kb_wiki_conte
 1. Read `parsed_schema.required_synthesized_frontmatter` before creating or updating synthesized pages.
 2. Choose `type` from `parsed_schema.allowed_types`; do not invent page types.
 3. Choose tags only from `parsed_schema.tag_taxonomy` / `parsed_schema.allowed_tags`.
-4. If a needed tag is missing, update `SCHEMA.md` first, run/dry-run `kb_reconcile_taxonomy`, or ask the user.
-5. Check `index` before creating a page; update existing pages instead of duplicating them.
-6. Check `recent_log` to avoid repeating work.
-7. If `health` reports schema errors, fix deterministic hygiene before creating new content.
-8. When writing raw notes, compute body-only `sha256` and use `kb_write_note`; do not invent a separate raw ingest flow.
-9. If `kb_write_note` returns schema errors, fix the content and retry. Do not bypass validation.
+4. Read `wiki_map.pages_by_type` and `wiki_map.link_graph` as the current entity/concept map. Use it to decide whether the task should update an existing page, create a new page, or only add links.
+5. Inspect `issue_candidates` for relevant graph/consistency problems:
+   - `broken_wikilink` / `ambiguous_wikilink` — repair link target spelling or create/disambiguate pages.
+   - `missing_backlink` — add bidirectional navigation when the relationship is meaningful.
+   - `orphan_page` / `underlinked_page` — connect useful pages to related pages, or archive stale pages.
+   - `unindexed_page` — add missing synthesized pages to `index.md`.
+   - `raw_source_without_synthesis` / `missing_raw_source` — synthesize/link useful raw sources or repair bad citations.
+   - `duplicate_title` — merge or disambiguate pages before adding more content.
+6. Treat `update_suggestions` as AI guidance. Apply them only when they are relevant and semantically correct; do not mechanically execute every suggestion.
+7. If a needed tag is missing, update `SCHEMA.md` first, run/dry-run `kb_reconcile_taxonomy`, or ask the user.
+8. Check `index` before creating a page; update existing pages instead of duplicating them.
+9. Check `recent_log` to avoid repeating work.
+10. If `health` reports schema errors, fix deterministic hygiene before creating new content.
+11. When writing raw notes, compute body-only `sha256` and use `kb_write_note`; do not invent a separate raw ingest flow.
+12. If `kb_write_note` returns schema errors, fix the content and retry. Do not bypass validation.
 
 `SCHEMA.md` is not documentation; it is the write contract that MCP enforces.
 
