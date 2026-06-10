@@ -1,9 +1,14 @@
+import re
 from hashlib import sha256
 from typing import Final
 
 from common.model import FrozenModel
 
 FRONTMATTER_DELIMITER: Final = "---"
+FRONTMATTER_CLOSING_DELIMITER: Final[re.Pattern[str]] = re.compile(
+    rf"^{re.escape(FRONTMATTER_DELIMITER)}(?:\r?\n|\Z)",
+    re.MULTILINE,
+)
 PROVENANCE_PREFIX: Final = "<!-- kb-provenance:"
 
 
@@ -19,15 +24,22 @@ def compute_sha256(text: str) -> str:
 
 
 def parse_note(raw_note: str) -> ParsedNote:
-    if not raw_note.startswith(f"{FRONTMATTER_DELIMITER}\n"):
+    if raw_note.startswith(f"{FRONTMATTER_DELIMITER}\r\n"):
+        frontmatter_start = len(f"{FRONTMATTER_DELIMITER}\r\n")
+    elif raw_note.startswith(f"{FRONTMATTER_DELIMITER}\n"):
+        frontmatter_start = len(f"{FRONTMATTER_DELIMITER}\n")
+    else:
         return ParsedNote(frontmatter=None, body=raw_note)
 
-    closing_delimiter = raw_note.find(f"\n{FRONTMATTER_DELIMITER}\n", 4)
-    if closing_delimiter == -1:
+    closing_match = FRONTMATTER_CLOSING_DELIMITER.search(raw_note[frontmatter_start:])
+    if closing_match is None:
         return ParsedNote(frontmatter=None, body=raw_note)
 
-    frontmatter = raw_note[4:closing_delimiter]
-    body_start = closing_delimiter + len(f"\n{FRONTMATTER_DELIMITER}\n")
+    frontmatter_end = frontmatter_start + closing_match.start()
+    frontmatter = (
+        raw_note[frontmatter_start:frontmatter_end].removesuffix("\r\n").removesuffix("\n")
+    )
+    body_start = frontmatter_start + closing_match.end()
     return ParsedNote(frontmatter=frontmatter, body=raw_note[body_start:])
 
 

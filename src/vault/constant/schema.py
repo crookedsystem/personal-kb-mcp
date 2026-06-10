@@ -29,5 +29,5 @@ TAG_TAXONOMY_HEADING: Final[re.Pattern[str]] = re.compile(
 )
 LEVEL_TWO_HEADING: Final[re.Pattern[str]] = re.compile(r"^##\s+")
 WIKILINK_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"\[\[([^\]#|]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]"
+    r"(?<!!)\[\[([^\]#|]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]"
 )

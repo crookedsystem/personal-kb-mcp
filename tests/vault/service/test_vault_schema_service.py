@@ -97,6 +97,32 @@ contested: false
     assert unknown_tag.issues[0].value == "unknown-tag"
 
 
+def test_validate_write_accepts_crlf_synthesized_frontmatter(tmp_path: Path) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: Windows/Obsidian 스타일 CRLF frontmatter로 synthesized page를 검증한다.
+    result = schema_service.validate_write(
+        "concepts/agent-memory.md",
+        "---\r\n"
+        "title: Agent Memory\r\n"
+        "created: 2026-06-10\r\n"
+        "updated: 2026-06-10\r\n"
+        "type: concept\r\n"
+        "tags: [agent-memory]\r\n"
+        "sources: [raw/hermes/source.md]\r\n"
+        "confidence: medium\r\n"
+        "contested: false\r\n"
+        "---\r\n"
+        "# Agent Memory\r\n",
+    )
+
+    # Then: 유효한 YAML frontmatter로 인식되어 missing_frontmatter가 발생하지 않는다.
+    assert result.issues == []
+
+
 def test_validate_write_rejects_blank_synthesized_sources(tmp_path: Path) -> None:
     # Given: schema가 준비된 LLM Wiki vault가 있다.
     vault_root = tmp_path / "vault"
@@ -794,6 +820,38 @@ def test_wiki_context_resolves_wikilinks_by_page_title(tmp_path: Path) -> None:
     pages = {page.path: page for page in context.wiki_map.pages}
     assert pages["concepts/working-memory.md"].outbound_links == ["concepts/agent-memory.md"]
     assert "broken_wikilink" not in {issue.code for issue in context.issue_candidates}
+
+
+def test_wiki_context_ignores_obsidian_embeds_for_wikilink_repair(tmp_path: Path) -> None:
+    # Given: synthesized page가 raw/assets attachment를 Obsidian embed로 포함한다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    (vault_root / "index.md").write_text("- [[agent-memory]]\n", encoding="utf-8")
+    _write_raw_note(vault_root / "raw" / "articles" / "source.md", "Source body\n")
+    _write_synthesized_note(
+        vault_root / "concepts" / "agent-memory.md",
+        title="Agent Memory",
+        page_type="concept",
+        tags=["agent-memory"],
+        sources=["raw/articles/source.md"],
+        body="# Agent Memory\n\n![[raw/assets/chart.png]]\n",
+    )
+
+    # When: wiki context를 만든다.
+    context = VaultSchemaService(
+        note_repository=VaultNoteRepository(root=vault_root)
+    ).wiki_context()
+
+    # Then: embed 대상은 page wikilink repair 대상으로 보고하지 않는다.
+    assert not any(
+        issue.code == "broken_wikilink" and issue.related_paths == ["raw/assets/chart.png"]
+        for issue in context.issue_candidates
+    )
+    assert not any(
+        suggestion.action == "repair_wikilink"
+        and suggestion.related_paths == ["raw/assets/chart.png"]
+        for suggestion in context.update_suggestions
+    )
 
 
 def test_wiki_context_counts_raw_source_url_as_referenced(tmp_path: Path) -> None:
