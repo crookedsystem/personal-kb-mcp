@@ -97,6 +97,65 @@ contested: false
     assert unknown_tag.issues[0].value == "unknown-tag"
 
 
+def test_validate_write_rejects_synthesized_page_when_schema_is_missing(
+    tmp_path: Path,
+) -> None:
+    # Given: SCHEMA.md가 아직 없는 vault가 있다.
+    vault_root = tmp_path / "vault"
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: required frontmatter를 갖춘 synthesized page를 먼저 쓰려고 한다.
+    result = schema_service.validate_write(
+        "concepts/agent-memory.md",
+        """---
+title: Agent Memory
+created: 2026-06-10
+updated: 2026-06-10
+type: concept
+tags: []
+sources: [raw/hermes/source.md]
+confidence: medium
+contested: false
+---
+
+# Agent Memory
+""",
+    )
+
+    # Then: 기본 type fallback으로 통과시키지 않고 schema 생성부터 요구한다.
+    assert [issue.code for issue in result.issues] == ["schema_missing"]
+
+
+def test_validate_write_rejects_non_string_synthesized_type(tmp_path: Path) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: synthesized page type이 문자열이 아니다.
+    result = schema_service.validate_write(
+        "concepts/agent-memory.md",
+        """---
+title: Agent Memory
+created: 2026-06-10
+updated: 2026-06-10
+type: [concept]
+tags: []
+sources: [raw/hermes/source.md]
+confidence: medium
+contested: false
+---
+
+# Agent Memory
+""",
+    )
+
+    # Then: required field 존재만으로 통과시키지 않고 타입 오류를 보고한다.
+    assert [(issue.code, issue.field) for issue in result.issues] == [
+        ("invalid_field_type", "type")
+    ]
+
+
 def test_validate_write_requires_raw_frontmatter_and_body_sha256(tmp_path: Path) -> None:
     # Given: schema가 준비된 LLM Wiki vault가 있다.
     vault_root = tmp_path / "vault"
@@ -123,6 +182,31 @@ sha256: bad
     # Then: raw metadata와 sha256 mismatch를 hard error로 보고한다.
     assert [issue.code for issue in missing_raw_metadata.issues] == ["missing_frontmatter"]
     assert [issue.code for issue in wrong_hash.issues] == ["raw_sha256_mismatch"]
+
+
+def test_validate_write_rejects_non_string_raw_sha256(tmp_path: Path) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: raw sha256 frontmatter가 문자열이 아니다.
+    result = schema_service.validate_write(
+        "raw/hermes/session.md",
+        """---
+source_url: hermes-session:abc
+ingested: 2026-06-10
+sha256: [bad]
+---
+
+# Raw Session
+""",
+    )
+
+    # Then: hash 비교를 건너뛰지 않고 필드 타입 오류를 보고한다.
+    assert [(issue.code, issue.field) for issue in result.issues] == [
+        ("invalid_field_type", "sha256")
+    ]
 
 
 def test_validate_vault_reports_schema_hygiene_summary(tmp_path: Path) -> None:
@@ -201,6 +285,67 @@ def test_wiki_context_returns_schema_index_recent_log_and_health(tmp_path: Path)
     ]
     assert context.health.schema_parse_ok is True
     assert context.health.unknown_tag_count == 0
+
+
+def test_wiki_context_omits_unindexed_guidance_when_index_is_excluded(
+    tmp_path: Path,
+) -> None:
+    # Given: index.md에 아직 없는 synthesized page가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    _write_raw_note(vault_root / "raw" / "articles" / "source.md", "Source body\n")
+    _write_synthesized_note(
+        vault_root / "concepts" / "agent-memory.md",
+        title="Agent Memory",
+        page_type="concept",
+        tags=["agent-memory"],
+        sources=["raw/articles/source.md"],
+        body="# Agent Memory\n\nNo index context requested.\n",
+    )
+
+    # When: context payload 절감을 위해 index를 제외한다.
+    context = VaultSchemaService(
+        note_repository=VaultNoteRepository(root=vault_root)
+    ).wiki_context(include_index=False)
+
+    # Then: 빈 index 문자열 때문에 unindexed backlog를 만들지 않는다.
+    assert "unindexed_page" not in {issue.code for issue in context.issue_candidates}
+    assert "add_index_entry" not in {
+        suggestion.action for suggestion in context.update_suggestions
+    }
+
+
+def test_wiki_context_requires_real_index_link_or_path_match(tmp_path: Path) -> None:
+    # Given: page stem이 index.md의 일반 단어 일부로만 등장한다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    (vault_root / "index.md").write_text(
+        (
+            "# Wiki Index\n\n"
+            "This daily chain mentions ai as plain text only.\n"
+            "Also mentions concepts/aiology but not the actual AI page.\n"
+        ),
+        encoding="utf-8",
+    )
+    _write_raw_note(vault_root / "raw" / "articles" / "source.md", "Source body\n")
+    _write_synthesized_note(
+        vault_root / "concepts" / "ai.md",
+        title="AI",
+        page_type="concept",
+        tags=["agent-memory"],
+        sources=["raw/articles/source.md"],
+        body="# AI\n\nNo explicit index entry.\n",
+    )
+
+    # When: wiki context를 만든다.
+    context = VaultSchemaService(
+        note_repository=VaultNoteRepository(root=vault_root)
+    ).wiki_context()
+
+    # Then: 임의 substring이 아니라 실제 path/link가 있어야 indexed로 본다.
+    page = next(page for page in context.wiki_map.pages if page.path == "concepts/ai.md")
+    assert page.indexed is False
+    assert "unindexed_page" in {issue.code for issue in context.issue_candidates}
 
 
 def test_wiki_context_surfaces_map_link_issues_and_update_suggestions(
@@ -318,3 +463,60 @@ Body that must not change.
     assert applied.changed_files == ["SCHEMA.md"]
     assert "agent-harness" in (vault_root / "SCHEMA.md").read_text(encoding="utf-8")
     assert schema_service.validate_vault().summary.unknown_tags == 0
+
+
+def test_reconcile_taxonomy_recomputes_unknown_tags_after_rename_apply(
+    tmp_path: Path,
+) -> None:
+    # Given: page가 SCHEMA.md에 없는 tag를 사용 중이고 rename 대상은 schema에 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    page_path = vault_root / "concepts" / "agent-harness.md"
+    _write_synthesized_note(
+        page_path,
+        title="Agent Harness",
+        page_type="concept",
+        tags=["agent-harness"],
+        sources=["raw/hermes/source.md"],
+        body="# Agent Harness\n",
+    )
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: unknown tag를 schema에 이미 있는 tag로 rename apply한다.
+    applied = schema_service.reconcile_taxonomy(
+        apply=True,
+        decisions={"rename": {"agent-harness": "agent-memory"}},
+    )
+
+    # Then: apply 이전 tag_usage 때문에 이전 tag를 unresolved로 남기지 않는다.
+    assert applied.unknown_tags == []
+    assert applied.tag_usage_counts == {"agent-memory": 1}
+    assert schema_service.validate_vault().summary.unknown_tags == 0
+
+
+def test_reconcile_taxonomy_does_not_treat_invalid_add_tags_as_allowed(
+    tmp_path: Path,
+) -> None:
+    # Given: page가 TAG_PATTERN에 맞지 않는 tag를 사용 중이다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    _write_synthesized_note(
+        vault_root / "concepts" / "agent-review.md",
+        title="Agent Review",
+        page_type="concept",
+        tags=["needs review"],
+        sources=["raw/hermes/source.md"],
+        body="# Agent Review\n",
+    )
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: invalid tag를 add decision으로 전달한다.
+    applied = schema_service.reconcile_taxonomy(
+        apply=True,
+        decisions={"add": ["needs review"]},
+    )
+
+    # Then: schema에 실제로 추가되지 않는 tag를 resolved로 취급하지 않는다.
+    assert applied.unknown_tags == ["needs review"]
+    assert applied.changed_files == []
+    assert "needs review" not in (vault_root / "SCHEMA.md").read_text(encoding="utf-8")

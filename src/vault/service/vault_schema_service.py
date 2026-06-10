@@ -122,6 +122,7 @@ class VaultSchemaService(FrozenModel):
         relative_paths = [self.note_repository.relative_path(path) for path in markdown_notes]
         wiki_map, issue_candidates, update_suggestions = self._build_wiki_context_guidance(
             index_text=index_text,
+            include_index_guidance=include_index,
             validation=validation,
         )
         return WikiContext(
@@ -154,8 +155,14 @@ class VaultSchemaService(FrozenModel):
         schema = self._parsed_schema()
         tag_usage = self._tag_usage_counts()
         decisions = decisions or {}
-        add_tags = sorted(_string_list(decisions.get("add")))
-        rename_tags = _string_mapping(decisions.get("rename"))
+        add_tags = sorted(
+            tag for tag in _string_list(decisions.get("add")) if TAG_PATTERN.match(tag)
+        )
+        rename_tags = {
+            old_tag: new_tag
+            for old_tag, new_tag in _string_mapping(decisions.get("rename")).items()
+            if TAG_PATTERN.match(new_tag)
+        }
         remove_tags = set(_string_list(decisions.get("remove")))
 
         allowed_after_add = set(schema.allowed_tags) | set(add_tags) | set(rename_tags.values())
@@ -194,6 +201,10 @@ class VaultSchemaService(FrozenModel):
                     path.write_text(rewritten, encoding="utf-8")
                     changed_files.append(relative_path)
 
+            schema = self._parsed_schema()
+            tag_usage = self._tag_usage_counts()
+            allowed_after_add = set(schema.allowed_tags)
+
         unresolved_unknown_tags = sorted(tag for tag in tag_usage if tag not in allowed_after_add)
         return TaxonomyReconcileResult(
             dry_run=not apply,
@@ -211,6 +222,9 @@ class VaultSchemaService(FrozenModel):
         if _is_raw_path(note_path):
             return self._validate_raw_note(note_path, content)
         if _is_synthesized_path(note_path):
+            schema_issues = self._schema_write_blocking_issues()
+            if schema_issues:
+                return schema_issues
             return self._validate_synthesized_note(note_path, content, self._parsed_schema())
         if note_path.startswith("_meta/"):
             return []
@@ -250,6 +264,19 @@ class VaultSchemaService(FrozenModel):
             )
         return issues
 
+    def _schema_write_blocking_issues(self) -> list[SchemaValidationIssue]:
+        schema_text = self._read_optional_note("SCHEMA.md")
+        if not schema_text:
+            return [
+                SchemaValidationIssue(
+                    code="schema_missing",
+                    path="SCHEMA.md",
+                    field="SCHEMA.md",
+                    message="Vault schema file is required before validating wiki pages",
+                )
+            ]
+        return self._validate_schema_note(schema_text)
+
     def _validate_synthesized_note(
         self,
         note_path: str,
@@ -272,7 +299,16 @@ class VaultSchemaService(FrozenModel):
                 )
 
         page_type = _scalar_string(frontmatter.get("type"))
-        if page_type is not None:
+        if "type" in frontmatter and page_type is None:
+            issues.append(
+                SchemaValidationIssue(
+                    code="invalid_field_type",
+                    path=note_path,
+                    field="type",
+                    message="type must be a YAML string",
+                )
+            )
+        elif page_type is not None:
             if page_type not in schema.allowed_types:
                 issues.append(
                     SchemaValidationIssue(
@@ -419,7 +455,16 @@ class VaultSchemaService(FrozenModel):
             )
 
         expected_hash = _scalar_string(frontmatter.get("sha256"))
-        if expected_hash is not None:
+        if "sha256" in frontmatter and expected_hash is None:
+            issues.append(
+                SchemaValidationIssue(
+                    code="invalid_field_type",
+                    path=note_path,
+                    field="sha256",
+                    message="sha256 must be a YAML string",
+                )
+            )
+        elif expected_hash is not None:
             actual_hash = compute_sha256(body)
             if expected_hash != actual_hash:
                 issues.append(
@@ -463,6 +508,7 @@ class VaultSchemaService(FrozenModel):
         self,
         *,
         index_text: str,
+        include_index_guidance: bool,
         validation: VaultValidationResult,
     ) -> tuple[WikiContextMap, list[WikiContextIssueCandidate], list[WikiUpdateSuggestion]]:
         page_drafts: dict[str, WikiPageDraft] = {}
@@ -594,7 +640,7 @@ class VaultSchemaService(FrozenModel):
                 )
             )
             related_pages = _related_page_candidates(page_path, page_drafts)
-            if not indexed:
+            if include_index_guidance and not indexed:
                 issue_candidates.append(
                     WikiContextIssueCandidate(
                         code="unindexed_page",
@@ -975,16 +1021,21 @@ def _resolve_wikilink_target(target: str, page_paths: list[str]) -> list[str]:
 def _index_mentions_page(index_text: str, page_path: str) -> bool:
     page_without_suffix = page_path[:-3] if page_path.endswith(".md") else page_path
     stem = Path(page_path).stem
-    return any(
-        marker in index_text
-        for marker in (
-            page_path,
-            page_without_suffix,
-            f"[[{page_path}]]",
-            f"[[{page_without_suffix}]]",
-            f"[[{stem}]]",
-        )
+    normalized_wikilink_targets = {
+        target[:-3] if target.endswith(".md") else target
+        for target in _extract_wikilink_targets(index_text)
+    }
+    return (
+        _contains_plain_index_path(index_text, page_path)
+        or _contains_plain_index_path(index_text, page_without_suffix)
+        or page_without_suffix in normalized_wikilink_targets
+        or stem in normalized_wikilink_targets
     )
+
+
+def _contains_plain_index_path(index_text: str, page_path: str) -> bool:
+    escaped_path = re.escape(page_path)
+    return re.search(rf"(?<![\w/.-]){escaped_path}(?![\w/.-])", index_text) is not None
 
 
 def _related_page_candidates(
