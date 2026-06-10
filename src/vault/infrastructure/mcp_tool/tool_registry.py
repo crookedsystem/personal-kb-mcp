@@ -10,12 +10,10 @@ from vault.dto.response.write_note_response import (
     WriteNoteResponse,
     write_note_response,
 )
-from vault.service.vault_schema_service import (
-    TaxonomyReconcileResult,
-    VaultSchemaService,
-    VaultValidationResult,
-    WikiContext,
-)
+from vault.service.result.schema_validation_result import VaultValidationResult
+from vault.service.result.taxonomy_reconcile_result import TaxonomyReconcileResult
+from vault.service.result.wiki_context_result import WikiContext
+from vault.service.vault_schema_service import VaultSchemaService
 from vault.service.vault_search_service import VaultSearchService
 from vault.service.vault_write_service import VaultWriteService
 

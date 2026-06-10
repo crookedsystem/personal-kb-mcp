@@ -6,10 +6,11 @@ import pytest
 from vault.component.write_queue import VaultWriteQueue
 from vault.entity.vault_note import compute_sha256
 from vault.entity.vault_path import VaultPaths
+from vault.error.schema_validation_error import SchemaValidationError
 from vault.error.write_error import WriteConflictError
 from vault.infrastructure.repository.vault_note_repository import VaultNoteRepository
 from vault.service.command.write_note_command import WriteNoteCommand
-from vault.service.vault_schema_service import SchemaValidationError, VaultSchemaService
+from vault.service.vault_schema_service import VaultSchemaService
 from vault.service.vault_write_service import VaultWriteService
 
 
