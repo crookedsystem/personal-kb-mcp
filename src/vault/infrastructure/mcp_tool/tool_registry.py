@@ -10,6 +10,12 @@ from vault.dto.response.write_note_response import (
     WriteNoteResponse,
     write_note_response,
 )
+from vault.service.vault_schema_service import (
+    TaxonomyReconcileResult,
+    VaultSchemaService,
+    VaultValidationResult,
+    WikiContext,
+)
 from vault.service.vault_search_service import VaultSearchService
 from vault.service.vault_write_service import VaultWriteService
 
@@ -18,6 +24,7 @@ def register_vault_tools(
     server: FastMCP[object],
     write_service: VaultWriteService,
     search_service: VaultSearchService,
+    schema_service: VaultSchemaService,
 ) -> None:
     @server.tool(
         description=(
@@ -50,3 +57,42 @@ def register_vault_tools(
         request = SearchNotesRequest(query=query, limit=limit, path_prefix=path_prefix)
         result = search_service.search_notes(request.to_command())
         return search_notes_response(result)
+
+    @server.tool(
+        description=(
+            "Return an orientation bundle for schema-first LLM Wiki work: SCHEMA.md, "
+            "index.md, recent log.md lines, parsed frontmatter/tag rules, and schema health."
+        )
+    )
+    def kb_wiki_context(
+        recent_log_lines: int = 30,
+        include_schema_rules: bool = True,
+        include_index: bool = True,
+    ) -> WikiContext:
+        return schema_service.wiki_context(
+            recent_log_lines=recent_log_lines,
+            include_schema_rules=include_schema_rules,
+            include_index=include_index,
+        )
+
+    @server.tool(
+        description=(
+            "Validate the configured LLM Wiki vault against the shared schema contract. "
+            "Checks frontmatter, required fields, path/type consistency, tags, raw metadata, "
+            "and raw body sha256 values."
+        )
+    )
+    def kb_validate_vault(include_raw: bool = True) -> VaultValidationResult:
+        return schema_service.validate_vault(include_raw=include_raw)
+
+    @server.tool(
+        description=(
+            "Dry-run or apply deterministic tag taxonomy reconciliation. Use apply=false to "
+            "inspect unknown tag usage, then pass decisions with add/rename/remove to apply."
+        )
+    )
+    def kb_reconcile_taxonomy(
+        apply: bool = False,
+        decisions: dict[str, object] | None = None,
+    ) -> TaxonomyReconcileResult:
+        return schema_service.reconcile_taxonomy(apply=apply, decisions=decisions)

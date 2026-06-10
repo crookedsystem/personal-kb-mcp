@@ -11,6 +11,7 @@ from vault.infrastructure.repository.vault_note_repository import (
     VaultNoteRepository,
 )
 from vault.service.vault_inspection_service import VaultInspectionService
+from vault.service.vault_schema_service import VaultSchemaService
 from vault.service.vault_search_service import VaultSearchService
 from vault.service.vault_write_service import VaultWriteService
 
@@ -21,6 +22,7 @@ class Runtime(FrozenModel):
     write_service: VaultWriteService
     search_service: VaultSearchService
     inspection_service: VaultInspectionService
+    schema_service: VaultSchemaService
 
 
 class RuntimeRegistry:
@@ -40,10 +42,12 @@ class RuntimeRegistry:
     def _create(self, vault_root: Path) -> Runtime:
         write_queue = VaultWriteQueue()
         note_repository = VaultNoteRepository(root=vault_root)
+        schema_service = VaultSchemaService(note_repository=note_repository)
         write_service = VaultWriteService(
             paths=VaultPaths(root=vault_root),
             queue=write_queue,
             actor="llm-wiki",
+            schema_service=schema_service,
         )
         search_service = VaultSearchService(note_repository=note_repository)
         inspection_service = VaultInspectionService(note_repository=note_repository)
@@ -53,6 +57,7 @@ class RuntimeRegistry:
             write_service=write_service,
             search_service=search_service,
             inspection_service=inspection_service,
+            schema_service=schema_service,
         )
 
 

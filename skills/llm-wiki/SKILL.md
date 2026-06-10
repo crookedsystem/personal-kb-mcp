@@ -19,8 +19,11 @@ Do not use it for one-off answers that should not be saved, or when the MCP serv
 
 The underlying server exposes these tool names:
 
-- `kb_write_note(note_path, content, if_hash?)` — write a complete note inside the configured vault. Existing notes require optimistic concurrency.
+- `kb_write_note(note_path, content, if_hash?)` — write a complete note inside the configured vault. It enforces the vault schema before writing. Existing notes require optimistic concurrency.
 - `kb_search_notes(query, limit?, path_prefix?)` — search the Markdown LLM Wiki vault and return ranked paths, titles, page types, tags, content hashes, and line snippets.
+- `kb_wiki_context(recent_log_lines?, include_schema_rules?, include_index?)` — return the schema-first orientation bundle: `SCHEMA.md`, `index.md`, recent `log.md`, parsed allowed types/tags/frontmatter rules, and current schema health.
+- `kb_validate_vault(include_raw?)` — validate deterministic schema hygiene across the vault: frontmatter, required fields, path/type consistency, tag taxonomy, raw metadata, and raw body hashes.
+- `kb_reconcile_taxonomy(apply?, decisions?)` — dry-run or apply deterministic tag taxonomy repair. Use it for tag add/rename/remove decisions, not for content migration.
 
 Vault and graph counters are exposed as a REST API endpoint at `GET /metrics`, not as MCP tools.
 Agent UIs may prefix MCP tool names. If you see prefixed names, map them back to the raw tool names above.
@@ -49,10 +52,13 @@ queries/         # valuable answered questions worth preserving
 
 ## First actions in a session
 
-1. Confirm the MCP server is connected by listing tools or calling `kb_search_notes` with a narrow orientation query such as `index`.
-2. Orient before writing. If the vault is directly readable through file tools, read `SCHEMA.md`, `index.md`, and the recent tail of `log.md`. If direct file reads are unavailable, use `kb_search_notes` for `SCHEMA`, `index`, `log`, and topic-specific searches.
-3. Search for existing pages before creating new ones. Avoid duplicate entity or concept pages.
-4. Decide the access mode:
+1. Confirm the MCP server is connected by listing tools or calling `kb_wiki_context`.
+2. Start every wiki task with `kb_wiki_context` when it is available. Treat the returned `parsed_schema` as the write contract, not as background documentation.
+3. Use `parsed_schema.required_synthesized_frontmatter`, `parsed_schema.allowed_types`, and `parsed_schema.tag_taxonomy` before creating or updating pages. Do not invent page types or tags.
+4. Check `index` and recent `log` from `kb_wiki_context` before creating a page. Update existing pages instead of duplicating them, and avoid repeating recent work.
+5. If `health` reports schema errors, fix deterministic hygiene with `kb_validate_vault`/`kb_reconcile_taxonomy` before creating new synthesized content.
+6. Search for existing topic pages with `kb_search_notes` before creating new ones. Avoid duplicate entity or concept pages.
+7. Decide the access mode:
    - **File-readable mode:** safe to update existing notes because you can read the complete current file, reconstruct it, and pass the exact current `content_hash` as `if_hash`.
    - **MCP-only mode:** `kb_search_notes` returns snippets, not full note bodies. Do not overwrite an existing note from snippets alone. Create new notes only, or ask the user for the full current note content before updating.
 
@@ -96,7 +102,7 @@ contested: false
 ---
 ```
 
-`confidence` and `contested` are optional but useful. Use `confidence: low` for single-source, speculative, or fast-moving claims. Use `contested: true` when sources conflict and explain the conflict in the body.
+All listed fields are required for synthesized pages. `confidence` and `contested` are not optional: use `confidence: low` for single-source, speculative, or fast-moving claims, and use `contested: true` when sources conflict and explain the conflict in the body. `tags` must come from the current `SCHEMA.md` tag taxonomy. If a needed tag is missing, update `SCHEMA.md` first or ask the user.
 
 ### Page body pattern
 
@@ -148,8 +154,9 @@ If `SCHEMA.md` is missing or the user is creating a new vault, create it before 
 - Append every durable action to `log.md`.
 
 ## Frontmatter
-Required fields: `title`, `created`, `updated`, `type`, `tags`, `sources`.
+Required fields: `title`, `created`, `updated`, `type`, `tags`, `sources`, `confidence`, `contested`.
 Allowed `type` values: `entity`, `concept`, `comparison`, `query`, `summary`.
+Tags must be declared in this file before a page can use them.
 
 ## Tag taxonomy
 [List 10-20 allowed tags for this domain before using them.]
@@ -206,7 +213,7 @@ Rotate to `log-YYYY.md` if `log.md` becomes too large, then start a fresh `log.m
 
 ## Provenance and hash rules
 
-`kb_write_note` appends a provenance trailer automatically after the content you provide:
+`kb_write_note` appends a provenance trailer automatically after synthesized and meta note content you provide:
 
 ```markdown
 <!-- kb-provenance: source_hash=<sha256-of-content-before-trailer>; operation=write_note; actor=llm-wiki -->
@@ -218,15 +225,63 @@ Do not hand-author that trailer in the `content` argument unless you are intenti
 - `content_hash` is SHA-256 of the final stored file, including the provenance trailer.
 - For the next update, pass `content_hash` as `if_hash`, not `source_hash`.
 - When updating from direct filesystem reads, compute SHA-256 over the exact current file text, including the provenance trailer and final newline.
+- Raw notes under `raw/` are the exception: `kb_write_note` does not append the provenance trailer to raw notes because the raw frontmatter `sha256` must keep matching the body-only source archive bytes.
+
+## Raw write contract
+
+Use the existing `kb_write_note` tool for raw notes; do not invent a separate ingest flow unless the user explicitly asks for one. Every `raw/**.md` note must include frontmatter before the body:
+
+```yaml
+---
+source_url: "https://example.com/source-or-hermes-session-id"
+ingested: YYYY-MM-DD
+sha256: "<sha256 of body only, excluding frontmatter>"
+---
+```
+
+For Hermes sources, add enough optional metadata to identify the source without copying secrets:
+
+```yaml
+---
+source_url: "hermes-session:20260609_074425_ae8639a9"
+ingested: 2026-06-10
+sha256: "<sha256 of body only>"
+type: raw-session
+source_system: hermes
+profile: default
+sessions:
+  - 20260609_074425_ae8639a9
+---
+```
+
+Raw files are source archives. Do not edit a raw body after creation. If the source changes, write a new raw note or explicitly record drift. Only repair raw frontmatter when metadata is missing, and preserve body bytes exactly.
 
 ## Write policy
 
-- `kb_write_note` writes the full note body. For updates, reconstruct the full target file and pass the current full-file hash as `if_hash`.
+- `kb_write_note` writes the full note body and validates it against the schema first. Treat schema validation errors as repair instructions: fix the content and retry; do not bypass validation.
+- For updates, reconstruct the full target file and pass the current full-file hash as `if_hash`.
 - Keep raw sources under `raw/` immutable. Corrections and synthesis belong in wiki pages such as `entities/`, `concepts/`, `comparisons/`, or `queries/`.
 - Every meaningful write should update `index.md` and append a concise entry to `log.md` unless the user explicitly requests a draft-only note.
 - Use lowercase kebab-case note paths such as `concepts/llm-wiki.md` and `entities/anthropic.md`.
 - Prefer `[[wikilinks]]` between wiki pages. New synthesized pages should have at least two useful outbound links when possible.
-- Preserve YAML frontmatter on wiki pages: `title`, `created`, `updated`, `type`, `tags`, and `sources`.
+- Preserve YAML frontmatter on wiki pages: `title`, `created`, `updated`, `type`, `tags`, `sources`, `confidence`, and `contested`.
+- Do not create entity/comparison/concept batches unless the user explicitly asks for content migration. Schema repair and content synthesis are different operations.
+
+## MCP context-first workflow
+
+When LLM Wiki MCP tools are available, start every wiki task with `kb_wiki_context` and use the returned context as the source of truth:
+
+1. Read `parsed_schema.required_synthesized_frontmatter` before creating or updating synthesized pages.
+2. Choose `type` from `parsed_schema.allowed_types`; do not invent page types.
+3. Choose tags only from `parsed_schema.tag_taxonomy` / `parsed_schema.allowed_tags`.
+4. If a needed tag is missing, update `SCHEMA.md` first, run/dry-run `kb_reconcile_taxonomy`, or ask the user.
+5. Check `index` before creating a page; update existing pages instead of duplicating them.
+6. Check `recent_log` to avoid repeating work.
+7. If `health` reports schema errors, fix deterministic hygiene before creating new content.
+8. When writing raw notes, compute body-only `sha256` and use `kb_write_note`; do not invent a separate raw ingest flow.
+9. If `kb_write_note` returns schema errors, fix the content and retry. Do not bypass validation.
+
+`SCHEMA.md` is not documentation; it is the write contract that MCP enforces.
 
 ## LLM Wiki page flow
 
@@ -405,6 +460,9 @@ Hermes prefixes native MCP tools as `mcp_<server>_<tool>`. With the default `llm
 
 - `mcp_llm_wiki_kb_write_note`
 - `mcp_llm_wiki_kb_search_notes`
+- `mcp_llm_wiki_kb_wiki_context`
+- `mcp_llm_wiki_kb_validate_vault`
+- `mcp_llm_wiki_kb_reconcile_taxonomy`
 
 If these tools do not appear, run `hermes mcp list`, `hermes mcp test llm_wiki`, then restart the Hermes session or gateway. In an existing session, use `/reload-mcp` if available.
 

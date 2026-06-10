@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from common.config import Settings
 from vault.infrastructure.mcp_tool.tool_registry import register_vault_tools
+from vault.service.vault_schema_service import VaultSchemaService
 from vault.service.vault_search_service import VaultSearchService
 from vault.service.vault_write_service import VaultWriteService
 
@@ -18,6 +19,7 @@ def create_mcp_server(
     settings: Settings,
     write_service: VaultWriteService,
     search_service: VaultSearchService,
+    schema_service: VaultSchemaService,
 ) -> FastMCP[object]:
     server: FastMCP[object] = FastMCP(
         "llm-wiki",
@@ -26,5 +28,5 @@ def create_mcp_server(
         streamable_http_path=settings.mcp_path,
         log_level=_mcp_log_level(settings),
     )
-    register_vault_tools(server, write_service, search_service)
+    register_vault_tools(server, write_service, search_service, schema_service)
     return server

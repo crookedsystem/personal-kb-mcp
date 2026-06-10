@@ -11,6 +11,7 @@ from vault.error.write_error import WriteConflictError
 from vault.infrastructure.repository.git_repository import GitRepository
 from vault.service.command.write_note_command import WriteNoteCommand
 from vault.service.result.write_note_result import WriteNoteResult
+from vault.service.vault_schema_service import VaultSchemaService
 
 
 class _FileSnapshot(FrozenModel):
@@ -23,6 +24,7 @@ class VaultWriteService(FrozenModel):
     queue: VaultWriteQueue
     actor: str = "llm-wiki"
     git_repository: GitRepository | None = None
+    schema_service: VaultSchemaService | None = None
 
     async def write_note(self, command: WriteNoteCommand) -> WriteNoteResult:
         async def operation() -> WriteNoteResult:
@@ -56,15 +58,22 @@ class VaultWriteService(FrozenModel):
             raise
 
     async def _write_note(self, command: WriteNoteCommand) -> WriteNoteResult:
+        note_path = str(command.note_path)
         resolved_path = self.paths.resolve_note_path(command.note_path)
         self._check_if_hash(resolved_path, command.if_hash)
+        if self.schema_service is not None:
+            self.schema_service.ensure_valid_write(note_path, command.content)
 
         source_hash = compute_sha256(command.content)
-        final_content = append_provenance_trailer(
-            command.content,
-            source_hash=source_hash,
-            operation="write_note",
-            actor=self.actor,
+        final_content = (
+            command.content
+            if _is_raw_note_path(note_path)
+            else append_provenance_trailer(
+                command.content,
+                source_hash=source_hash,
+                operation="write_note",
+                actor=self.actor,
+            )
         )
         resolved_path.parent.mkdir(parents=True, exist_ok=True)
         resolved_path.write_text(final_content, encoding="utf-8")
@@ -113,3 +122,7 @@ class VaultWriteService(FrozenModel):
         current_hash = compute_sha256(resolved_path.read_text(encoding="utf-8"))
         if current_hash != if_hash:
             raise WriteConflictError("stale if_hash does not match current note content")
+
+
+def _is_raw_note_path(note_path: str) -> bool:
+    return Path(note_path).parts[:1] == ("raw",)

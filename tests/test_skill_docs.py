@@ -23,6 +23,11 @@ def test_llm_wiki_skill_embeds_content_modeling_guidance() -> None:
         "## index.md structure",
         "## log.md structure",
         "## Concrete examples",
+        "## MCP context-first workflow",
+        "SCHEMA.md` is not documentation; it is the write contract",
+        "Raw write contract",
+        "kb_validate_vault",
+        "kb_reconcile_taxonomy",
     ]
 
     for fragment in required_fragments:
