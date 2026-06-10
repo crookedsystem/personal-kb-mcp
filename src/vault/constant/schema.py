@@ -19,7 +19,7 @@ REQUIRED_SYNTH_FIELDS: Final = (
     "confidence",
     "contested",
 )
-REQUIRED_RAW_FIELDS: Final = ("source_url", "ingested", "sha256")
+REQUIRED_RAW_FIELDS: Final = ("ingested", "sha256")
 DEFAULT_ALLOWED_TYPES: Final = ("entity", "concept", "comparison", "query", "summary")
 DATE_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TAG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9-]*$")

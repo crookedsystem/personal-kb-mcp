@@ -298,6 +298,26 @@ class VaultSchemaService(FrozenModel):
                     )
                 )
 
+        title = _title_string(frontmatter.get("title"))
+        if "title" in frontmatter and title is None:
+            issues.append(
+                SchemaValidationIssue(
+                    code="invalid_field_type",
+                    path=note_path,
+                    field="title",
+                    message="title must be a YAML scalar",
+                )
+            )
+        elif title == "":
+            issues.append(
+                SchemaValidationIssue(
+                    code="invalid_title",
+                    path=note_path,
+                    field="title",
+                    message="title must not be blank",
+                )
+            )
+
         page_type = _scalar_string(frontmatter.get("type"))
         if "type" in frontmatter and page_type is None:
             issues.append(
@@ -449,6 +469,17 @@ class VaultSchemaService(FrozenModel):
                     path=note_path,
                     field="source_url",
                     message="source_url must be a YAML string",
+                )
+            )
+
+        source_urls = _frontmatter_list(frontmatter.get("source_urls"))
+        if "source_urls" in frontmatter and source_urls is None:
+            issues.append(
+                SchemaValidationIssue(
+                    code="invalid_field_type",
+                    path=note_path,
+                    field="source_urls",
+                    message="source_urls must be a YAML list of strings",
                 )
             )
 
@@ -970,6 +1001,14 @@ def _scalar_string(value: object) -> str | None:
     return None
 
 
+def _title_string(value: object) -> str | None:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, bool | int | float | date):
+        return str(value)
+    return None
+
+
 def _date_string(value: object) -> str | None:
     if isinstance(value, str):
         return value
@@ -1002,8 +1041,8 @@ def _context_page_title(
     body: str,
 ) -> str:
     if frontmatter is not None:
-        title = _scalar_string(frontmatter.get("title"))
-        if title:
+        title = _title_string(frontmatter.get("title"))
+        if title is not None:
             return title
     heading_match = re.search(r"^#\s+(.+)$", body, re.MULTILINE)
     if heading_match:

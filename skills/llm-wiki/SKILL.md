@@ -243,13 +243,17 @@ Do not hand-author that trailer in the `content` argument unless you are intenti
 
 ## Raw write contract
 
-Use the existing `kb_write_note` tool for raw notes; do not invent a separate ingest flow unless the user explicitly asks for one. Every `raw/**.md` note must include frontmatter before the body:
+Use the existing `kb_write_note` tool for raw notes; do not invent a separate ingest flow unless the user explicitly asks for one. Every `raw/**.md` note must include frontmatter before the body. `ingested` and body-only `sha256` are required; source metadata is optional because raw notes may contain direct research without a source URL.
 
 ```yaml
 ---
-source_url: "https://example.com/source-or-hermes-session-id"
 ingested: YYYY-MM-DD
 sha256: "<sha256 of body only, excluding frontmatter>"
+source_url: "https://example.com/source-or-hermes-session-id"
+# or:
+source_urls:
+  - "https://example.com/source-a"
+  - "https://example.com/source-b"
 ---
 ```
 

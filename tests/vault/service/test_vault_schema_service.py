@@ -156,6 +156,87 @@ contested: false
     ]
 
 
+def test_validate_write_treats_scalar_synthesized_title_as_string(
+    tmp_path: Path,
+) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: title이 문자열은 아니지만 YAML scalar다.
+    result = schema_service.validate_write(
+        "concepts/agent-memory.md",
+        """---
+title: 123
+created: 2026-06-10
+updated: 2026-06-10
+type: concept
+tags: []
+sources: [raw/hermes/source.md]
+confidence: medium
+contested: false
+---
+
+# Agent Memory
+""",
+    )
+
+    # Then: scalar title은 문자열 title로 취급한다.
+    assert result.issues == []
+
+
+def test_validate_write_rejects_non_scalar_or_blank_synthesized_title(
+    tmp_path: Path,
+) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+
+    # When: title이 list이거나 빈 문자열이다.
+    non_scalar = schema_service.validate_write(
+        "concepts/agent-memory.md",
+        """---
+title: [Agent Memory]
+created: 2026-06-10
+updated: 2026-06-10
+type: concept
+tags: []
+sources: [raw/hermes/source.md]
+confidence: medium
+contested: false
+---
+
+# Agent Memory
+""",
+    )
+    blank = schema_service.validate_write(
+        "concepts/agent-memory.md",
+        """---
+title: "   "
+created: 2026-06-10
+updated: 2026-06-10
+type: concept
+tags: []
+sources: [raw/hermes/source.md]
+confidence: medium
+contested: false
+---
+
+# Agent Memory
+""",
+    )
+
+    # Then: wiki map에서 사용할 수 없는 title은 거부한다.
+    assert [(issue.code, issue.field) for issue in non_scalar.issues] == [
+        ("invalid_field_type", "title")
+    ]
+    assert [(issue.code, issue.field) for issue in blank.issues] == [
+        ("invalid_title", "title")
+    ]
+
+
 def test_validate_write_rejects_non_string_synthesized_confidence(
     tmp_path: Path,
 ) -> None:
@@ -194,7 +275,7 @@ def test_validate_write_requires_raw_frontmatter_and_body_sha256(tmp_path: Path)
     _write_schema(vault_root)
     schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
 
-    # When: raw note에 source metadata나 body-only sha256이 빠져 있다.
+    # When: raw note에 frontmatter나 body-only sha256이 빠져 있다.
     missing_raw_metadata = schema_service.validate_write(
         "raw/hermes/session.md",
         "# Raw Session\n",
@@ -211,9 +292,78 @@ sha256: bad
 """,
     )
 
-    # Then: raw metadata와 sha256 mismatch를 hard error로 보고한다.
+    # Then: raw frontmatter와 sha256 mismatch를 hard error로 보고한다.
     assert [issue.code for issue in missing_raw_metadata.issues] == ["missing_frontmatter"]
     assert [issue.code for issue in wrong_hash.issues] == ["raw_sha256_mismatch"]
+
+
+def test_validate_write_allows_raw_note_without_source_metadata(tmp_path: Path) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+    body = "# 조사 메모\n\n직접 조사해 정리한 raw 내용.\n"
+
+    # When: 외부 source 없이 raw note를 쓴다.
+    result = schema_service.validate_write(
+        "raw/manual/research.md",
+        f"""---
+ingested: 2026-06-10
+sha256: {compute_sha256(body)}
+---
+{body}""",
+    )
+
+    # Then: source metadata가 없어도 raw archive로 허용한다.
+    assert result.issues == []
+
+
+def test_validate_write_allows_multiple_raw_source_urls(tmp_path: Path) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+    body = "# Multi-source Raw\n"
+
+    # When: raw note가 여러 source URL을 가진다.
+    result = schema_service.validate_write(
+        "raw/articles/multi-source.md",
+        f"""---
+source_urls:
+  - https://example.com/one
+  - https://example.com/two
+ingested: 2026-06-10
+sha256: {compute_sha256(body)}
+---
+{body}""",
+    )
+
+    # Then: 다중 source URL metadata를 허용한다.
+    assert result.issues == []
+
+
+def test_validate_write_rejects_non_list_raw_source_urls(tmp_path: Path) -> None:
+    # Given: schema가 준비된 LLM Wiki vault가 있다.
+    vault_root = tmp_path / "vault"
+    _write_schema(vault_root)
+    schema_service = VaultSchemaService(note_repository=VaultNoteRepository(root=vault_root))
+    body = "# Multi-source Raw\n"
+
+    # When: source_urls가 YAML list가 아니다.
+    result = schema_service.validate_write(
+        "raw/articles/multi-source.md",
+        f"""---
+source_urls: https://example.com/one
+ingested: 2026-06-10
+sha256: {compute_sha256(body)}
+---
+{body}""",
+    )
+
+    # Then: 다중 source field의 타입 오류를 보고한다.
+    assert [(issue.code, issue.field) for issue in result.issues] == [
+        ("invalid_field_type", "source_urls")
+    ]
 
 
 def test_validate_write_rejects_non_string_raw_source_url(tmp_path: Path) -> None:

@@ -90,8 +90,14 @@ def register_vault_tools(
             "inspect unknown tag usage, then pass decisions with add/rename/remove to apply."
         )
     )
-    def kb_reconcile_taxonomy(
+    async def kb_reconcile_taxonomy(
         apply: bool = False,
         decisions: dict[str, object] | None = None,
     ) -> TaxonomyReconcileResult:
-        return schema_service.reconcile_taxonomy(apply=apply, decisions=decisions)
+        if not apply:
+            return schema_service.reconcile_taxonomy(apply=apply, decisions=decisions)
+
+        async def operation() -> TaxonomyReconcileResult:
+            return schema_service.reconcile_taxonomy(apply=apply, decisions=decisions)
+
+        return await write_service.queue.run(operation)
