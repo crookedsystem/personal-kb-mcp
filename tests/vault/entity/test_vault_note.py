@@ -28,6 +28,18 @@ def test_note_parser는_frontmatter와_body를_분리한다() -> None:
     assert note.body == "Body text\n"
 
 
+def test_note_parser는_crlf_frontmatter와_body를_분리한다() -> None:
+    # Given: Windows/Obsidian에서 저장된 CRLF 줄바꿈 note가 있다.
+    raw_note = "---\r\ntitle: Today\r\n---\r\nBody text\r\n"
+
+    # When: note를 parse한다.
+    note = parse_note(raw_note)
+
+    # Then: frontmatter delimiter를 인식하고 body의 원래 줄바꿈은 유지한다.
+    assert note.frontmatter == "title: Today"
+    assert note.body == "Body text\r\n"
+
+
 def test_note_parser는_frontmatter가_없는_markdown을_body로만_처리한다() -> None:
     # Given: frontmatter 없이 heading과 본문만 있는 markdown이 있다.
     raw_note = "# Heading\nBody\n"
