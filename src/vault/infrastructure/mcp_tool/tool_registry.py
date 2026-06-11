@@ -10,6 +10,8 @@ from vault.dto.response.write_note_response import (
     WriteNoteResponse,
     write_note_response,
 )
+from vault.service.result.schema_validation_result import VaultValidationResult
+from vault.service.vault_schema_service import VaultSchemaService
 from vault.service.vault_search_service import VaultSearchService
 from vault.service.vault_write_service import VaultWriteService
 
@@ -18,6 +20,7 @@ def register_vault_tools(
     server: FastMCP[object],
     write_service: VaultWriteService,
     search_service: VaultSearchService,
+    schema_service: VaultSchemaService,
 ) -> None:
     @server.tool(
         description=(
@@ -50,3 +53,13 @@ def register_vault_tools(
         request = SearchNotesRequest(query=query, limit=limit, path_prefix=path_prefix)
         result = search_service.search_notes(request.to_command())
         return search_notes_response(result)
+
+    @server.tool(
+        description=(
+            "Validate the configured LLM Wiki vault against the shared schema contract. "
+            "Checks frontmatter, required fields, path/type consistency, tags, raw metadata, "
+            "and raw body sha256 values."
+        )
+    )
+    def kb_validate_vault(include_raw: bool = True) -> VaultValidationResult:
+        return schema_service.validate_vault(include_raw=include_raw)
