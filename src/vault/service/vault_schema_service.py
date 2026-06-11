@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
@@ -15,8 +16,9 @@ from vault.constant.schema import (
     REQUIRED_SYNTH_FIELDS,
     SYNTHESIZED_DIRS,
     SYNTHESIZED_TYPE_BY_DIR,
+    WIKILINK_PATTERN,
 )
-from vault.entity.vault_note import compute_sha256, parse_note
+from vault.entity.vault_note import PROVENANCE_PREFIX, compute_sha256, parse_note
 from vault.error.schema_validation_error import SchemaValidationError
 from vault.infrastructure.repository.vault_note_repository import VaultNoteRepository
 from vault.service.result.parsed_wiki_schema import ParsedWikiSchema
@@ -24,6 +26,11 @@ from vault.service.result.schema_validation_result import (
     SchemaValidationIssue,
     ValidationSummary,
     VaultValidationResult,
+)
+from vault.service.result.wiki_context_result import (
+    WikiContextIssueCandidate,
+    WikiPageDraft,
+    WikiUpdateSuggestion,
 )
 from vault.service.vault_schema_parser import parse_schema_document
 
@@ -412,6 +419,23 @@ class VaultSchemaService(FrozenModel):
             return ""
         return path.read_text(encoding="utf-8")
 
+    def _tag_usage_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for path in self.note_repository.markdown_notes():
+            relative_path = self.note_repository.relative_path(path)
+            if not _is_synthesized_path(relative_path):
+                continue
+            frontmatter, _body, _issues = _frontmatter_mapping(
+                relative_path,
+                path.read_text(encoding="utf-8"),
+            )
+            if frontmatter is None:
+                continue
+            tags = _frontmatter_list(frontmatter.get("tags")) or []
+            for tag in tags:
+                counts[tag] = counts.get(tag, 0) + 1
+        return dict(sorted(counts.items()))
+
 
 def _frontmatter_mapping(
     note_path: str,
@@ -536,3 +560,200 @@ def _frontmatter_list(value: object) -> list[str] | None:
 
 def _nonblank_strings(values: list[str]) -> list[str]:
     return [value for value in values if value.strip()]
+
+
+def _tail_nonempty_lines(content: str, line_count: int) -> str:
+    lines = [
+        line
+        for line in content.splitlines()
+        if line.strip() and not line.strip().startswith(PROVENANCE_PREFIX)
+    ]
+    if line_count <= 0:
+        return ""
+    return "\n".join(lines[-line_count:])
+
+
+def _context_page_title(
+    note_path: str,
+    frontmatter: dict[str, Any] | None,
+    body: str,
+) -> str:
+    if frontmatter is not None:
+        title = _title_string(frontmatter.get("title"))
+        if title is not None:
+            return title
+    heading_match = re.search(r"^#\s+(.+)$", body, re.MULTILINE)
+    if heading_match:
+        return heading_match.group(1).strip()
+    return Path(note_path).stem.replace("-", " ").title()
+
+
+def _extract_wikilink_targets(body: str) -> list[str]:
+    targets: set[str] = set()
+    for match in WIKILINK_PATTERN.finditer(body):
+        target = match.group(1).strip()
+        if target:
+            targets.add(target)
+    return sorted(targets)
+
+
+def _resolve_wikilink_target(
+    target: str,
+    page_drafts: dict[str, WikiPageDraft],
+) -> list[str]:
+    normalized = target.strip().strip("/")
+    if normalized.endswith(".md"):
+        normalized = normalized[:-3]
+    normalized_lower = normalized.lower()
+    candidates: set[str] = set()
+    for page_path, draft in page_drafts.items():
+        page_without_suffix = page_path[:-3] if page_path.endswith(".md") else page_path
+        values = {
+            page_path,
+            page_without_suffix,
+            Path(page_path).stem,
+            draft.title,
+        }
+        if normalized in values or normalized_lower in {value.lower() for value in values}:
+            candidates.add(page_path)
+    return sorted(candidates)
+
+
+def _index_mentions_page(
+    index_text: str,
+    page_path: str,
+    page_drafts: dict[str, WikiPageDraft],
+) -> bool:
+    page_without_suffix = page_path[:-3] if page_path.endswith(".md") else page_path
+    if _contains_plain_index_path(index_text, page_path) or _contains_plain_index_path(
+        index_text,
+        page_without_suffix,
+    ):
+        return True
+
+    for target in _extract_wikilink_targets(index_text):
+        resolved_targets = _resolve_wikilink_target(target, page_drafts)
+        if resolved_targets == [page_path]:
+            return True
+    return False
+
+
+def _contains_plain_index_path(index_text: str, page_path: str) -> bool:
+    escaped_path = re.escape(page_path)
+    return re.search(rf"(?<![\w/.-]){escaped_path}(?![\w/.-])", index_text) is not None
+
+
+def _raw_source_urls(frontmatter: dict[str, Any] | None) -> set[str]:
+    if frontmatter is None:
+        return set()
+    urls: set[str] = set()
+    source_url = _scalar_string(frontmatter.get("source_url"))
+    if source_url is not None and source_url.strip():
+        urls.add(source_url)
+    source_urls = _frontmatter_list(frontmatter.get("source_urls")) or []
+    urls.update(_nonblank_strings(source_urls))
+    return urls
+
+
+def _raw_paths_by_source_url(
+    raw_source_urls_by_path: dict[str, set[str]],
+) -> dict[str, set[str]]:
+    raw_paths_by_url: dict[str, set[str]] = {}
+    for raw_path, source_urls in raw_source_urls_by_path.items():
+        for source_url in source_urls:
+            raw_paths_by_url.setdefault(source_url, set()).add(raw_path)
+    return raw_paths_by_url
+
+
+def _empty_parsed_wiki_schema() -> ParsedWikiSchema:
+    return ParsedWikiSchema(
+        schema_parse_ok=False,
+        allowed_types=[],
+        required_synthesized_frontmatter=[],
+        required_raw_frontmatter=[],
+        tag_taxonomy={},
+        allowed_tags=[],
+    )
+
+
+def _related_page_candidates(
+    page_path: str,
+    page_drafts: dict[str, WikiPageDraft],
+    *,
+    limit: int = 5,
+) -> list[str]:
+    current = page_drafts[page_path]
+    ranked: list[tuple[int, str]] = []
+    current_tags = set(current.tags)
+    current_sources = set(current.sources)
+    for candidate_path, candidate in page_drafts.items():
+        if candidate_path == page_path:
+            continue
+        score = len(current_tags & set(candidate.tags)) * 3
+        if current.page_type is not None and current.page_type == candidate.page_type:
+            score += 2
+        if current_sources & set(candidate.sources):
+            score += 1
+        if score > 0:
+            ranked.append((-score, candidate_path))
+    return [candidate_path for _score, candidate_path in sorted(ranked)[:limit]]
+
+
+def _append_duplicate_title_guidance(
+    page_drafts: dict[str, WikiPageDraft],
+    issue_candidates: list[WikiContextIssueCandidate],
+    update_suggestions: list[WikiUpdateSuggestion],
+) -> None:
+    title_paths: dict[str, list[str]] = {}
+    for page_path, draft in page_drafts.items():
+        title_paths.setdefault(draft.title.casefold(), []).append(page_path)
+    for paths in title_paths.values():
+        if len(paths) < 2:
+            continue
+        sorted_paths = sorted(paths)
+        issue_candidates.append(
+            WikiContextIssueCandidate(
+                code="duplicate_title",
+                path=sorted_paths[0],
+                message="Multiple synthesized pages share the same title",
+                related_paths=sorted_paths[1:],
+            )
+        )
+        update_suggestions.append(
+            WikiUpdateSuggestion(
+                action="merge_or_disambiguate_duplicate_pages",
+                path=sorted_paths[0],
+                reason=(
+                    "Merge duplicate pages or rename them so the entity/concept map is unambiguous"
+                ),
+                related_paths=sorted_paths[1:],
+            )
+        )
+
+
+def _deduplicate_issue_candidates(
+    issues: list[WikiContextIssueCandidate],
+) -> list[WikiContextIssueCandidate]:
+    seen: set[tuple[str, str, tuple[str, ...]]] = set()
+    deduplicated: list[WikiContextIssueCandidate] = []
+    for issue in issues:
+        key = (issue.code, issue.path, tuple(issue.related_paths))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduplicated.append(issue)
+    return deduplicated
+
+
+def _deduplicate_update_suggestions(
+    suggestions: list[WikiUpdateSuggestion],
+) -> list[WikiUpdateSuggestion]:
+    seen: set[tuple[str, str, tuple[str, ...]]] = set()
+    deduplicated: list[WikiUpdateSuggestion] = []
+    for suggestion in suggestions:
+        key = (suggestion.action, suggestion.path, tuple(suggestion.related_paths))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduplicated.append(suggestion)
+    return deduplicated
