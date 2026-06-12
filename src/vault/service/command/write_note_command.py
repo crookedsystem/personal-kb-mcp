@@ -50,11 +50,11 @@ class WriteNoteCommand(FrozenModel):
     @field_validator("title")
     @classmethod
     def _validate_title(cls, value: str) -> str:
+        if _has_line_separator(value):
+            raise ValueError("title must be a single line")
         normalized = value.strip()
         if not normalized:
             raise ValueError("title must not be empty")
-        if "\n" in normalized:
-            raise ValueError("title must be a single line")
         return normalized
 
     @field_validator("tags", "sources", mode="before")
@@ -66,11 +66,11 @@ class WriteNoteCommand(FrozenModel):
         for item in value:
             if not isinstance(item, str):
                 raise ValueError("value must be a list of strings")
+            if _has_line_separator(item):
+                raise ValueError("list values must be single-line strings")
             stripped = item.strip()
             if not stripped:
                 raise ValueError("list values must not be empty")
-            if "\n" in stripped:
-                raise ValueError("list values must be single-line strings")
             normalized.append(stripped)
         return tuple(normalized)
 
@@ -110,6 +110,10 @@ def _allowed_types_for_path(note_path: Path) -> frozenset[WikiNoteType] | None:
     if not note_path.parts:
         return None
     return _ROOT_TYPES.get(note_path.parts[0])
+
+
+def _has_line_separator(value: str) -> bool:
+    return value.splitlines() != [value]
 
 
 def _contains_top_level_heading(markdown: str) -> bool:

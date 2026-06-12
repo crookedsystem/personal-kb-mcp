@@ -17,6 +17,8 @@ def _write_command(
     *,
     note_path: str = "concepts/today.md",
     title: str = "Today",
+    tags: tuple[str, ...] = ("agent-memory",),
+    sources: tuple[str, ...] = ("raw/articles/source.md",),
     body: str = "## Summary\nBody text",
     if_hash: str | None = None,
 ) -> WriteNoteCommand:
@@ -24,8 +26,8 @@ def _write_command(
         note_path=note_path,
         title=title,
         type="concept",
-        tags=("agent-memory",),
-        sources=("raw/articles/source.md",),
+        tags=tags,
+        sources=sources,
         body=body,
         created=date(2026, 6, 12),
         updated=date(2026, 6, 12),
@@ -102,3 +104,19 @@ def test_write_command는_path와_type_불일치와_full_markdown_body를_거부
 
     with pytest.raises(ValidationError, match="YAML frontmatter"):
         _write_command(body="---\ntitle: Bad\n---\n# Bad")
+
+
+@pytest.mark.parametrize("line_separator", ["\n", "\r", "\r\n", "\u2028"])
+def test_write_command는_title의_line_separator를_거부한다(line_separator: str) -> None:
+    # When / Then: YAML frontmatter에 새 줄을 만들 수 있는 모든 line separator는 title에서 거부된다.
+    with pytest.raises(ValidationError, match="title must be a single line"):
+        _write_command(title=f"Safe{line_separator}contested: true")
+
+
+def test_write_command는_tags와_sources의_line_separator를_거부한다() -> None:
+    # When / Then: tag/source list 값도 렌더링 전 단일 라인 문자열이어야 한다.
+    with pytest.raises(ValidationError, match="list values must be single-line"):
+        _write_command(tags=("safe\rcontested: true",))
+
+    with pytest.raises(ValidationError, match="list values must be single-line"):
+        _write_command(sources=("raw/articles/source.md\rcontested: true",))
