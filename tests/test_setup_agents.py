@@ -467,3 +467,48 @@ def test_stable_repo_root는_worktree에서_메인_worktree를_가리킨다(tmp_
     git("worktree", "add", "-q", str(worktree), "-b", "feature", cwd=main)
 
     assert stable_repo_root(worktree).resolve() == main.resolve()
+
+
+def test_worktree에서_설치하면_훅은_main경로_스킬env는_worktree경로를_쓴다(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    def git(*args: str, cwd: Path) -> None:
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+    main = tmp_path / "main"
+    (main / "scripts" / "agent_hooks").mkdir(parents=True)
+    (main / "scripts" / "agent_hooks" / "llm_wiki_agent_hook.py").write_text("", encoding="utf-8")
+    git("init", "-q", cwd=main)
+    git("config", "user.email", "t@example.com", cwd=main)
+    git("config", "user.name", "t", cwd=main)
+    git("add", "-A", cwd=main)
+    git("commit", "-q", "-m", "init", cwd=main)
+
+    worktree = tmp_path / "wt"
+    git("worktree", "add", "-q", str(worktree), "-b", "feature", cwd=main)
+    # A worktree-local .env must win for skill/env sourcing.
+    env_file = worktree / ".env"
+    env_file.write_text(
+        f"CLAUDE_HOOKS_DIR={tmp_path / 'claude-hooks'}\n"
+        f"CLAUDE_SETTINGS_PATH={tmp_path / 'settings.json'}\n",
+        encoding="utf-8",
+    )
+
+    config = resolve_config(
+        agent="claude",
+        repo_root=worktree,
+        env_file=env_file,
+        process_env={},
+    )
+    result = install_agent_hooks(config)
+    assert result is not None
+
+    # Hook bakes the durable main-worktree helper path (survives worktree deletion)...
+    stop_script = result.stop_hook.read_text(encoding="utf-8")
+    assert str(main.resolve()) in stop_script
+    assert str(worktree.resolve()) not in stop_script
+    # ...but skill/env sourcing stays on the invoking worktree checkout.
+    assert config.repo_root == worktree
+    assert config.skill_source == worktree / "skills" / "llm-wiki"
