@@ -1,6 +1,6 @@
 import asyncio
 import subprocess
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 from vault.component.write_queue import VaultWriteQueue
@@ -32,8 +32,8 @@ def test_git_repository가_연결된_note_작성은_commit_hash를_반환한다(
                 tags=("git",),
                 sources=("raw/articles/source.md",),
                 body="## Summary\nBody text",
-                created=date(2026, 6, 12),
-                updated=date(2026, 6, 12),
+                created=datetime(2026, 6, 12, 9, 30, 45),
+                updated=datetime(2026, 6, 12, 10, 31, 46),
             )
         )
 

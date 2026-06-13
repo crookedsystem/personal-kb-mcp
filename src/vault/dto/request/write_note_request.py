@@ -1,8 +1,7 @@
-from datetime import date
-
 from common.model import FrozenModel
 from vault.service.command.write_note_command import (
     ConfidenceLevel,
+    NoteTimestamp,
     WikiNoteType,
     WriteNoteCommand,
 )
@@ -15,8 +14,8 @@ class WriteNoteRequest(FrozenModel):
     tags: list[str]
     sources: list[str]
     body: str
-    created: date
-    updated: date
+    created: NoteTimestamp
+    updated: NoteTimestamp
     confidence: ConfidenceLevel | None = None
     contested: bool | None = None
     if_hash: str | None = None

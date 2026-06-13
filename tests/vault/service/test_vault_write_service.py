@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -30,8 +30,8 @@ def _write_command(
         tags=tags,
         sources=sources,
         body=body,
-        created=date(2026, 6, 12),
-        updated=date(2026, 6, 12),
+        created=datetime(2026, 6, 12, 9, 30, 45),
+        updated=datetime(2026, 6, 12, 10, 31, 46),
         confidence="medium",
         contested=False,
         if_hash=if_hash,
@@ -99,12 +99,47 @@ def test_write_command는_path와_type_불일치와_full_markdown_body를_거부
             tags=("agent-memory",),
             sources=("raw/articles/source.md",),
             body="## Summary\nBody",
-            created=date(2026, 6, 12),
-            updated=date(2026, 6, 12),
+            created=datetime(2026, 6, 12, 9, 30, 45),
+            updated=datetime(2026, 6, 12, 10, 31, 46),
         )
 
     with pytest.raises(ValidationError, match="YAML frontmatter"):
         _write_command(body="---\ntitle: Bad\n---\n# Bad")
+
+
+@pytest.mark.parametrize(
+    ("created", "updated", "error"),
+    [
+        (date(2026, 6, 12), datetime(2026, 6, 12, 10, 31, 46), "include time"),
+        (
+            "2026-06-12T09:30",
+            "2026-06-12T10:31:46",
+            "ISO datetime format with seconds",
+        ),
+        (
+            datetime(2026, 6, 12, 9, 30, 45, 123),
+            datetime(2026, 6, 12, 10, 31, 46),
+            "sub-second precision",
+        ),
+    ],
+)
+def test_write_command는_created_updated의_초단위_datetime을_요구한다(
+    created: object,
+    updated: object,
+    error: str,
+) -> None:
+    # When / Then: date-only, minute precision, sub-second precision timestamp는 거부된다.
+    with pytest.raises(ValidationError, match=error):
+        WriteNoteCommand(
+            note_path="concepts/today.md",
+            title="Today",
+            type="concept",
+            tags=("agent-memory",),
+            sources=("raw/articles/source.md",),
+            body="## Summary\nBody text",
+            created=created,
+            updated=updated,
+        )
 
 
 @pytest.mark.parametrize("line_separator", ["\n", "\r", "\r\n", "\u2028"])

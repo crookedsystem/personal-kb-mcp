@@ -13,8 +13,8 @@ class VaultNoteRenderer(FrozenModel):
         frontmatter = self._render_frontmatter(
             {
                 "title": command.title,
-                "created": command.created.isoformat(),
-                "updated": command.updated.isoformat(),
+                "created": command.created.isoformat(timespec="seconds"),
+                "updated": command.updated.isoformat(timespec="seconds"),
                 "type": command.type,
                 "tags": command.tags,
                 "sources": command.sources,

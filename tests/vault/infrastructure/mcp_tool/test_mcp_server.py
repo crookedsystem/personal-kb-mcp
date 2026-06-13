@@ -2,6 +2,9 @@ import asyncio
 from pathlib import Path
 from typing import TypedDict, cast
 
+import pytest
+from mcp.server.fastmcp.exceptions import ToolError
+
 from common.config import Settings
 from common.runtime_registry import create_runtime
 from vault.infrastructure.mcp_tool.mcp_server import create_mcp_server
@@ -58,8 +61,8 @@ def test_mcp_server는_write와_search_tool만_노출하고_description을_제�
                 "tags": ["agent-memory"],
                 "sources": ["raw/articles/source.md"],
                 "body": "## Summary\nAgent memory keeps durable context.",
-                "created": "2026-06-12",
-                "updated": "2026-06-12",
+                "created": "2026-06-12T09:30:45",
+                "updated": "2026-06-12T10:31:46",
                 "confidence": "medium",
                 "contested": False,
             },
@@ -78,5 +81,32 @@ def test_mcp_server는_write와_search_tool만_노출하고_description을_제�
         assert structured_search_result["count"] == 1
         assert results[0]["path"] == "concepts/agent-memory.md"
         assert results[0]["content_hash"] == structured_write_result["content_hash"]
+
+    asyncio.run(exercise_server())
+
+
+def test_mcp_server는_write_timestamp의_초단위_datetime을_검증한다(tmp_path: Path) -> None:
+    async def exercise_server() -> None:
+        # Given: 임시 vault를 바라보는 MCP server가 있다.
+        vault_root = tmp_path / "vault"
+        settings = Settings(host="127.0.0.1", vault_path=vault_root)
+        runtime = create_runtime(settings)
+        server = create_mcp_server(settings, runtime.write_service, runtime.search_service)
+
+        # When / Then: date-only timestamp는 write tool validator에서 거부된다.
+        with pytest.raises(ToolError, match="include time|ISO datetime"):
+            await server.call_tool(
+                "kb_write_note",
+                {
+                    "note_path": "concepts/agent-memory.md",
+                    "title": "Agent Memory",
+                    "type": "concept",
+                    "tags": ["agent-memory"],
+                    "sources": ["raw/articles/source.md"],
+                    "body": "## Summary\nAgent memory keeps durable context.",
+                    "created": "2026-06-12",
+                    "updated": "2026-06-12T10:31:46",
+                },
+            )
 
     asyncio.run(exercise_server())

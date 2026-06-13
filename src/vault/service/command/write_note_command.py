@@ -1,8 +1,9 @@
-from datetime import date
+import re
+from datetime import date, datetime
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import AfterValidator, BeforeValidator, Field, field_validator, model_validator
 
 from common.model import FrozenModel
 from vault.entity.vault_note import FRONTMATTER_DELIMITER, PROVENANCE_PREFIX
@@ -19,6 +20,33 @@ WikiNoteType: TypeAlias = Literal[
     "log",
 ]
 ConfidenceLevel: TypeAlias = Literal["high", "medium", "low"]
+
+_NOTE_TIMESTAMP_WITH_SECONDS = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?"
+)
+
+
+def _validate_note_timestamp_input(value: object) -> object:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        raise ValueError("created and updated must include time down to seconds")
+    if isinstance(value, str) and not _NOTE_TIMESTAMP_WITH_SECONDS.fullmatch(value):
+        raise ValueError("created and updated must use ISO datetime format with seconds")
+    return value
+
+
+def _validate_note_timestamp_precision(value: datetime) -> datetime:
+    if value.microsecond:
+        raise ValueError("created and updated must not include sub-second precision")
+    return value
+
+
+NoteTimestamp: TypeAlias = Annotated[
+    datetime,
+    BeforeValidator(_validate_note_timestamp_input),
+    AfterValidator(_validate_note_timestamp_precision),
+]
 
 _ROOT_TYPES: dict[str, frozenset[WikiNoteType]] = {
     "raw": frozenset({"raw"}),
@@ -41,8 +69,8 @@ class WriteNoteCommand(FrozenModel):
     tags: tuple[str, ...]
     sources: tuple[str, ...]
     body: str = Field(min_length=1)
-    created: date
-    updated: date
+    created: NoteTimestamp
+    updated: NoteTimestamp
     confidence: ConfidenceLevel | None = None
     contested: bool | None = None
     if_hash: str | None = None

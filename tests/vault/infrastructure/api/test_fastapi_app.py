@@ -105,7 +105,8 @@ def test_fastapi_app은_tools_endpoint에서_mcp_tool_schema를_문서화한다(
     assert write_note["inputSchema"]["properties"]["tags"]["type"] == "array"
     assert write_note["inputSchema"]["properties"]["sources"]["type"] == "array"
     assert write_note["inputSchema"]["properties"]["body"]["type"] == "string"
-    assert write_note["inputSchema"]["properties"]["created"]["format"] == "date"
+    assert write_note["inputSchema"]["properties"]["created"]["format"] == "date-time"
+    assert write_note["inputSchema"]["properties"]["updated"]["format"] == "date-time"
     assert "content" not in write_note["inputSchema"]["properties"]
     assert write_note["outputSchema"]["type"] == "object"
     assert search_notes["inputSchema"]["required"] == ["query"]
