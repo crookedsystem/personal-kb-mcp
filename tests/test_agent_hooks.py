@@ -102,30 +102,37 @@ def test_format_context_block은_link_context를_연결후보별로_출력한다
     assert "fanplus chat service" not in block
 
 
-def test_load_context는_kb_context_실패시_search_notes로_fallback한다(
+def test_load_context는_kb_context_실패나_legacy_schema면_search_notes로_fallback한다(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    async def fake_context_notes(**kwargs: object) -> dict[str, object]:
-        raise RuntimeError("unknown tool")
-
     async def fake_search_notes(**kwargs: object) -> dict[str, object]:
         return {"query": "fallback", "count": 0, "results": []}
 
-    monkeypatch.setattr("agent_hooks.llm_wiki_agent_hook.context_notes", fake_context_notes)
+    async def fake_context_error(**kwargs: object) -> dict[str, object]:
+        raise RuntimeError("unknown tool")
+
+    async def fake_context_legacy(**kwargs: object) -> dict[str, object]:
+        return {"query": "legacy", "sections": [{"name": "direct_matches", "notes": []}]}
+
     monkeypatch.setattr("agent_hooks.llm_wiki_agent_hook.search_notes", fake_search_notes)
 
-    payload = asyncio.run(
-        load_context(
-            server_url="http://127.0.0.1:9999/mcp",
-            query="fanplus chat",
-            mode="prompt",
-            limit=12,
-            path_prefix=None,
-            timeout_seconds=1.0,
+    for fake_context_notes in (fake_context_error, fake_context_legacy):
+        monkeypatch.setattr(
+            "agent_hooks.llm_wiki_agent_hook.context_notes",
+            fake_context_notes,
         )
-    )
+        payload = asyncio.run(
+            load_context(
+                server_url="http://127.0.0.1:9999/mcp",
+                query="fanplus chat",
+                mode="prompt",
+                limit=12,
+                path_prefix=None,
+                timeout_seconds=1.0,
+            )
+        )
 
-    assert payload == {"query": "fallback", "count": 0, "results": []}
+        assert payload == {"query": "fallback", "count": 0, "results": []}
 
 
 def test_format_context_error는_fail_open_안내를_출력한다() -> None:

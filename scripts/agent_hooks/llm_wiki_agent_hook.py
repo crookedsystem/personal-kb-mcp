@@ -7,7 +7,7 @@ import json
 import os
 import re
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -194,7 +194,7 @@ async def load_context(
     timeout_seconds: float,
 ) -> dict[str, Any]:
     try:
-        return await context_notes(
+        payload = await context_notes(
             server_url=server_url,
             query=query,
             mode=mode,
@@ -202,14 +202,17 @@ async def load_context(
             path_prefix=path_prefix,
             timeout_seconds=timeout_seconds,
         )
+        if _is_link_context_payload(payload):
+            return payload
     except Exception:
-        return await search_notes(
-            server_url=server_url,
-            query=query,
-            limit=limit,
-            path_prefix=path_prefix,
-            timeout_seconds=timeout_seconds,
-        )
+        pass
+    return await search_notes(
+        server_url=server_url,
+        query=query,
+        limit=limit,
+        path_prefix=path_prefix,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 async def context_notes(
@@ -319,19 +322,7 @@ def format_context_block(
     *,
     max_results: int = DEFAULT_LIMIT,
 ) -> str:
-    if any(
-        isinstance(payload.get(key), list)
-        for key in ("orientation", "broken_links", "link_targets", "suggested_links")
-    ):
-        return format_link_context_block(
-            server_name,
-            server_url,
-            payload,
-            max_results=max_results,
-        )
-
-    sections = payload.get("sections")
-    if isinstance(sections, list):
+    if _is_link_context_payload(payload):
         return format_link_context_block(
             server_name,
             server_url,
@@ -374,6 +365,13 @@ def format_context_block(
 
     lines.extend([CONTEXT_FOOTER, CONTEXT_BLOCK_CLOSE])
     return "\n".join(lines)
+
+
+def _is_link_context_payload(payload: Mapping[str, Any]) -> bool:
+    return any(
+        isinstance(payload.get(key), list)
+        for key in ("orientation", "broken_links", "link_targets", "suggested_links")
+    )
 
 
 def format_link_context_block(
@@ -423,122 +421,57 @@ def _append_link_context(
     max_results: int,
 ) -> int:
     printed = 0
-    printed += _append_context_references(
+    printed += _append_context_items(
         lines,
         "orientation",
         payload.get("orientation"),
+        _format_context_reference,
         max_results=max_results - printed,
     )
-    printed += _append_broken_links(
+    printed += _append_context_items(
         lines,
+        "broken_links",
         payload.get("broken_links"),
+        _format_broken_link,
         max_results=max_results - printed,
     )
-    printed += _append_context_references(
+    printed += _append_context_items(
         lines,
         "link_targets",
         payload.get("link_targets"),
+        _format_context_reference,
         max_results=max_results - printed,
     )
-    printed += _append_suggested_links(
+    printed += _append_context_items(
         lines,
+        "suggested_links",
         payload.get("suggested_links"),
+        _format_suggested_link,
         max_results=max_results - printed,
     )
-    if printed > 0:
-        return printed
-    return _append_legacy_sections(lines, payload, max_results=max_results)
+    return printed
 
 
-def _append_context_references(
+def _append_context_items(
     lines: list[str],
     label: str,
     value: object,
+    formatter: Callable[[Mapping[str, Any]], list[str]],
     *,
     max_results: int,
 ) -> int:
     if max_results <= 0:
         return 0
-    references = value if isinstance(value, list) else []
-    if not references:
+    items = value if isinstance(value, list) else []
+    if not items:
         return 0
     lines.append(label)
     printed = 0
-    for reference in references:
-        if printed >= max_results or not isinstance(reference, Mapping):
+    for item in items:
+        if printed >= max_results or not isinstance(item, Mapping):
             break
-        lines.extend(_format_context_reference(reference))
+        lines.extend(formatter(item))
         printed += 1
-    return printed
-
-
-def _append_broken_links(
-    lines: list[str],
-    value: object,
-    *,
-    max_results: int,
-) -> int:
-    if max_results <= 0:
-        return 0
-    broken_links = value if isinstance(value, list) else []
-    if not broken_links:
-        return 0
-    lines.append("broken_links")
-    printed = 0
-    for link in broken_links:
-        if printed >= max_results or not isinstance(link, Mapping):
-            break
-        lines.extend(_format_broken_link(link))
-        printed += 1
-    return printed
-
-
-def _append_suggested_links(
-    lines: list[str],
-    value: object,
-    *,
-    max_results: int,
-) -> int:
-    if max_results <= 0:
-        return 0
-    suggested_links = value if isinstance(value, list) else []
-    if not suggested_links:
-        return 0
-    lines.append("suggested_links")
-    printed = 0
-    for link in suggested_links:
-        if printed >= max_results or not isinstance(link, Mapping):
-            break
-        lines.extend(_format_suggested_link(link))
-        printed += 1
-    return printed
-
-
-def _append_legacy_sections(
-    lines: list[str],
-    payload: Mapping[str, Any],
-    *,
-    max_results: int,
-) -> int:
-    printed = 0
-    raw_sections = payload.get("sections")
-    sections = raw_sections if isinstance(raw_sections, list) else []
-    for section in sections:
-        if printed >= max_results or not isinstance(section, Mapping):
-            continue
-        raw_notes = section.get("notes")
-        notes = raw_notes if isinstance(raw_notes, list) else []
-        if not notes:
-            continue
-        section_name = str(section.get("name") or "context")
-        purpose = str(section.get("purpose") or "").strip()
-        suffix = f" — {purpose[:180]}" if purpose else ""
-        lines.append(f"{section_name}{suffix}")
-        for note in notes:
-            if printed >= max_results or not isinstance(note, Mapping):
-                break
-            lines.extend(_format_context_note(note))
-            printed += 1
     return printed
 
 
@@ -597,31 +530,6 @@ def _format_suggested_link(link: Mapping[str, Any]) -> list[str]:
     followup_search = str(link.get("followup_search") or "").strip()
     if followup_search:
         lines.append(f"  - verify: kb_search_notes query={followup_search[:200]}")
-    return lines
-
-
-def _format_context_note(note: Mapping[str, Any]) -> list[str]:
-    path = str(note.get("path") or "(unknown)")
-    title = str(note.get("title") or path)
-    page_type = str(note.get("page_type") or "unknown")
-    content_hash = str(note.get("content_hash") or "")
-    raw_tags = note.get("tags")
-    tags = raw_tags if isinstance(raw_tags, list) else []
-    tag_suffix = f" tags={','.join(map(str, tags[:5]))}" if tags else ""
-    hash_suffix = f" hash={content_hash[:12]}" if content_hash else ""
-    lines = [f"- [[{path.removesuffix('.md')}]] — {title} ({page_type}{tag_suffix}{hash_suffix})"]
-    why_included = str(note.get("why_included") or "").strip()
-    if why_included:
-        lines.append(f"  - why: {why_included[:240]}")
-    raw_matches = note.get("matches")
-    matches = raw_matches if isinstance(raw_matches, list) else []
-    for match in matches[:2]:
-        if not isinstance(match, Mapping):
-            continue
-        snippet = str(match.get("snippet") or "").strip()
-        line = match.get("line")
-        if snippet:
-            lines.append(f"  - L{line}: {snippet[:240]}")
     return lines
 
 
