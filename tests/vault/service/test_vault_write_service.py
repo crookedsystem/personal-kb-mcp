@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -122,21 +122,6 @@ def test_write_command는_path와_type_불일치와_full_markdown_body를_거부
             datetime(2026, 6, 12, 10, 31, 46),
             "sub-second precision",
         ),
-        (
-            "2026-06-12T09:30:45Z",
-            "2026-06-12T10:31:46",
-            "must not include timezone",
-        ),
-        (
-            "2026-06-12T09:30:45",
-            "2026-06-12T10:31:46+09:00",
-            "must not include timezone",
-        ),
-        (
-            datetime(2026, 6, 12, 9, 30, 45, tzinfo=UTC),
-            datetime(2026, 6, 12, 10, 31, 46, tzinfo=UTC),
-            "must not include timezone",
-        ),
     ],
 )
 def test_write_command는_created_updated의_초단위_datetime을_요구한다(
@@ -156,6 +141,44 @@ def test_write_command는_created_updated의_초단위_datetime을_요구한다(
             created=created,
             updated=updated,
         )
+
+
+@pytest.mark.parametrize(
+    ("created", "updated"),
+    [
+        # naive 입력은 UTC로 간주된다.
+        ("2026-06-12T09:30:45", "2026-06-12T10:31:46"),
+        (datetime(2026, 6, 12, 9, 30, 45), datetime(2026, 6, 12, 10, 31, 46)),
+        # Z/offset 입력은 UTC로 변환된다 (offset 적용 후에도 updated >= created).
+        ("2026-06-12T09:30:45Z", "2026-06-12T10:31:46Z"),
+        ("2026-06-12T18:30:45+09:00", "2026-06-12T10:31:46Z"),
+        (
+            datetime(2026, 6, 12, 18, 30, 45, tzinfo=timezone(timedelta(hours=9))),
+            datetime(2026, 6, 12, 10, 31, 46, tzinfo=UTC),
+        ),
+    ],
+)
+def test_write_command는_created_updated를_UTC로_정규화한다(
+    created: Any,
+    updated: Any,
+) -> None:
+    # When: naive·Z·offset 입력으로 command를 만든다.
+    command = WriteNoteCommand(
+        note_path="concepts/today.md",
+        title="Today",
+        type="concept",
+        tags=("agent-memory",),
+        sources=("raw/articles/source.md",),
+        body="## Summary\nBody text",
+        created=created,
+        updated=updated,
+    )
+
+    # Then: 두 timestamp 모두 UTC tz-aware로 정규화되어 혼합 awareness 비교가 발생하지 않는다.
+    assert command.created.tzinfo == UTC
+    assert command.updated.tzinfo == UTC
+    assert command.created == datetime(2026, 6, 12, 9, 30, 45, tzinfo=UTC)
+    assert command.updated == datetime(2026, 6, 12, 10, 31, 46, tzinfo=UTC)
 
 
 @pytest.mark.parametrize("line_separator", ["\n", "\r", "\r\n", "\u2028"])

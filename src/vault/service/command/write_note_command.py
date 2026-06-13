@@ -1,5 +1,5 @@
 import re
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Literal, TypeAlias
 
@@ -21,37 +21,33 @@ WikiNoteType: TypeAlias = Literal[
 ]
 ConfidenceLevel: TypeAlias = Literal["high", "medium", "low"]
 
-_NOTE_TIMESTAMP_WITH_SECONDS = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
-_NOTE_TIMESTAMP_WITH_TIMEZONE = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})"
+_NOTE_TIMESTAMP_WITH_SECONDS = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?"
 )
 
 
 def _validate_note_timestamp_input(value: object) -> object:
     if isinstance(value, datetime):
-        if value.tzinfo is not None:
-            raise ValueError("created and updated must not include timezone")
         return value
     if isinstance(value, date):
         raise ValueError("created and updated must include time down to seconds")
-    if isinstance(value, str):
-        if _NOTE_TIMESTAMP_WITH_TIMEZONE.fullmatch(value):
-            raise ValueError("created and updated must not include timezone")
-        if not _NOTE_TIMESTAMP_WITH_SECONDS.fullmatch(value):
-            raise ValueError("created and updated must use ISO datetime format with seconds")
+    if isinstance(value, str) and not _NOTE_TIMESTAMP_WITH_SECONDS.fullmatch(value):
+        raise ValueError("created and updated must use ISO datetime format with seconds")
     return value
 
 
-def _validate_note_timestamp_precision(value: datetime) -> datetime:
+def _normalize_note_timestamp_to_utc(value: datetime) -> datetime:
     if value.microsecond:
         raise ValueError("created and updated must not include sub-second precision")
-    return value
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 NoteTimestamp: TypeAlias = Annotated[
     datetime,
     BeforeValidator(_validate_note_timestamp_input),
-    AfterValidator(_validate_note_timestamp_precision),
+    AfterValidator(_normalize_note_timestamp_to_utc),
 ]
 
 _ROOT_TYPES: dict[str, frozenset[WikiNoteType]] = {

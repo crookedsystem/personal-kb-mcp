@@ -90,8 +90,8 @@ Every wiki page is written through structured fields that render YAML frontmatte
 ```yaml
 ---
 title: Page Title
-created: YYYY-MM-DDTHH:MM:SS
-updated: YYYY-MM-DDTHH:MM:SS
+created: YYYY-MM-DDTHH:MM:SSZ
+updated: YYYY-MM-DDTHH:MM:SSZ
 type: raw | entity | concept | comparison | query | summary | schema | index | log
 tags: [tag-from-schema]
 sources: [raw/articles/source-file.md]
@@ -100,7 +100,7 @@ contested: false
 ---
 ```
 
-`title`, `created`, `updated`, `type`, `tags`, `sources`, and `body` are required tool arguments. `created` and `updated` must be ISO datetimes with seconds, such as `2026-06-09T14:30:05`; date-only values and timezone suffixes (e.g. `Z` or `+09:00`) are invalid. `confidence` and `contested` are optional but useful. Use `confidence: low` for single-source, speculative, or fast-moving claims. Use `contested: true` when sources conflict and explain the conflict in the body.
+`title`, `created`, `updated`, `type`, `tags`, `sources`, and `body` are required tool arguments. `created` and `updated` must be ISO datetimes with seconds, such as `2026-06-09T14:30:05`; date-only values are invalid. Timestamps are normalized to UTC and stored with a trailing `Z` — naive values are assumed UTC, and `Z`/offset inputs (e.g. `+09:00`) are converted to UTC. `confidence` and `contested` are optional but useful. Use `confidence: low` for single-source, speculative, or fast-moving claims. Use `contested: true` when sources conflict and explain the conflict in the body.
 
 Path and type must agree:
 
@@ -159,7 +159,7 @@ If `SCHEMA.md` is missing or the user is creating a new vault, create it before 
 - Append every durable action to `log.md`.
 
 ## Frontmatter
-Required fields: `title`, `created`, `updated`, `type`, `tags`, `sources`. `created` and `updated` use ISO datetimes with seconds.
+Required fields: `title`, `created`, `updated`, `type`, `tags`, `sources`. `created` and `updated` use ISO datetimes with seconds, normalized to UTC and stored with a trailing `Z`.
 Allowed `type` values: `raw`, `entity`, `concept`, `comparison`, `query`, `summary`, `schema`, `index`, `log`.
 
 ## Tag taxonomy
@@ -294,8 +294,8 @@ The rendered note begins like this before the provenance trailer:
 ```markdown
 ---
 title: LLM Wiki
-created: "2026-06-09T14:30:05"
-updated: "2026-06-09T14:45:12"
+created: "2026-06-09T14:30:05Z"
+updated: "2026-06-09T14:45:12Z"
 type: concept
 tags:
   - knowledge-base

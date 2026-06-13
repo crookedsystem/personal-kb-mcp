@@ -37,8 +37,8 @@ def test_note_renderer는_structured_command를_markdown_note로_렌더링한다
     assert rendered == (
         "---\n"
         "title: Today\n"
-        'created: "2026-06-12T09:30:45"\n'
-        'updated: "2026-06-12T10:31:46"\n'
+        'created: "2026-06-12T09:30:45Z"\n'
+        'updated: "2026-06-12T10:31:46Z"\n'
         "type: concept\n"
         "tags:\n"
         "  - agent-memory\n"
