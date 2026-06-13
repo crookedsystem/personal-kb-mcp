@@ -1,10 +1,10 @@
 from common.model import FrozenModel
 from vault.service.command.write_note_command import (
     ConfidenceLevel,
-    NoteTimestamp,
     WikiNoteType,
     WriteNoteCommand,
 )
+from vault.service.note_timestamp import NoteTimestamp
 
 
 class WriteNoteRequest(FrozenModel):

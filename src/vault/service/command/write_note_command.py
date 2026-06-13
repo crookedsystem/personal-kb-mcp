@@ -1,19 +1,11 @@
-import re
-from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Literal, TypeAlias
+from typing import Literal, TypeAlias
 
-from pydantic import (
-    AfterValidator,
-    BeforeValidator,
-    Field,
-    WithJsonSchema,
-    field_validator,
-    model_validator,
-)
+from pydantic import Field, field_validator, model_validator
 
 from common.model import FrozenModel
 from vault.entity.vault_note import FRONTMATTER_DELIMITER, PROVENANCE_PREFIX
+from vault.service.note_timestamp import NoteTimestamp
 
 WikiNoteType: TypeAlias = Literal[
     "raw",
@@ -27,47 +19,6 @@ WikiNoteType: TypeAlias = Literal[
     "log",
 ]
 ConfidenceLevel: TypeAlias = Literal["high", "medium", "low"]
-
-_NOTE_TIMESTAMP_UTC_Z_PATTERN = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
-_NOTE_TIMESTAMP_UTC_Z = re.compile(_NOTE_TIMESTAMP_UTC_Z_PATTERN)
-
-
-def _validate_note_timestamp_input(value: object) -> object:
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, date):
-        raise ValueError("created and updated must include time down to seconds")
-    if isinstance(value, str) and not _NOTE_TIMESTAMP_UTC_Z.fullmatch(value):
-        raise ValueError(
-            "created and updated must use UTC ISO datetime format with seconds "
-            "and trailing Z (YYYY-MM-DDTHH:MM:SSZ)"
-        )
-    return value
-
-
-def _normalize_note_timestamp_to_utc(value: datetime) -> datetime:
-    if value.microsecond:
-        raise ValueError("created and updated must not include sub-second precision")
-    if value.tzinfo is None:
-        raise ValueError("created and updated must use UTC timezone")
-    if value.utcoffset() != timedelta(0):
-        raise ValueError("created and updated must use UTC timezone")
-    return value.astimezone(UTC)
-
-
-NoteTimestamp: TypeAlias = Annotated[
-    datetime,
-    BeforeValidator(_validate_note_timestamp_input),
-    AfterValidator(_normalize_note_timestamp_to_utc),
-    WithJsonSchema(
-        {
-            "type": "string",
-            "format": "date-time",
-            "pattern": f"^{_NOTE_TIMESTAMP_UTC_Z_PATTERN}$",
-            "examples": ["2026-06-12T09:30:45Z"],
-        }
-    ),
-]
 
 _ROOT_TYPES: dict[str, frozenset[WikiNoteType]] = {
     "raw": frozenset({"raw"}),

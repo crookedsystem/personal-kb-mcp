@@ -11,7 +11,8 @@ from vault.dto.response.write_note_response import (
     WriteNoteResponse,
     write_note_response,
 )
-from vault.service.command.write_note_command import ConfidenceLevel, NoteTimestamp, WikiNoteType
+from vault.service.command.write_note_command import ConfidenceLevel, WikiNoteType
+from vault.service.note_timestamp import NoteTimestamp
 from vault.service.vault_git_push_service import VaultGitPushService
 from vault.service.vault_search_service import VaultSearchService
 from vault.service.vault_write_service import VaultWriteService

@@ -1,15 +1,10 @@
-from datetime import datetime
 from typing import TypeAlias
 
 from common.model import FrozenModel
 from vault.service.command.write_note_command import WriteNoteCommand
+from vault.service.note_timestamp import format_note_timestamp
 
 FrontmatterValue: TypeAlias = str | bool | tuple[str, ...] | None
-
-
-def _format_utc_timestamp(value: datetime) -> str:
-    """Render a UTC-normalized timestamp with a trailing ``Z`` instead of ``+00:00``."""
-    return value.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 class VaultNoteRenderer(FrozenModel):
@@ -19,8 +14,8 @@ class VaultNoteRenderer(FrozenModel):
         frontmatter = self._render_frontmatter(
             {
                 "title": command.title,
-                "created": _format_utc_timestamp(command.created),
-                "updated": _format_utc_timestamp(command.updated),
+                "created": format_note_timestamp(command.created),
+                "updated": format_note_timestamp(command.updated),
                 "type": command.type,
                 "tags": command.tags,
                 "sources": command.sources,
