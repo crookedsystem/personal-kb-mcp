@@ -11,7 +11,7 @@ Use this skill only for explicit vault GitHub sync requests. It is intentionally
 
 The MCP server exposes:
 
-- `kb_push_vault()` — commit all pending changes in `KB_VAULT_PATH` with a local-time `YYYY-MM-DD HH:MM - vault sync` commit message, then push `origin` to the current branch. The server checks GitHub CLI auth first, then falls back to `git push`.
+- `kb_push_vault()` — commit all pending changes in `KB_VAULT_PATH` with a UTC `YYYY-MM-DD HH:MM - vault sync` commit message, then push `origin` to the current branch. The server checks GitHub CLI auth first, then falls back to `git push`.
 
 Agent UIs may namespace the tool name. Examples:
 

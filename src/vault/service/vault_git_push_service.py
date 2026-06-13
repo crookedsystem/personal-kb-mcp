@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 
 from common.model import FrozenModel
 from vault.component.write_queue import VaultWriteQueue
@@ -7,14 +7,14 @@ from vault.infrastructure.repository.git_repository import GitRepository
 from vault.service.result.git_push_result import GitPushResult
 
 
-def _local_now() -> datetime:
-    return datetime.now().astimezone()
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 class VaultGitPushService(FrozenModel):
     repository: GitRepository
     queue: VaultWriteQueue
-    clock: Callable[[], datetime] = _local_now
+    clock: Callable[[], datetime] = _utc_now
 
     async def push_vault(self) -> GitPushResult:
         async def operation() -> GitPushResult:
@@ -36,4 +36,4 @@ class VaultGitPushService(FrozenModel):
         )
 
     def _commit_message(self) -> str:
-        return f"{self.clock().astimezone().strftime('%Y-%m-%d %H:%M')} - vault sync"
+        return f"{self.clock().astimezone(UTC).strftime('%Y-%m-%d %H:%M')} - vault sync"

@@ -1,6 +1,6 @@
 import asyncio
 import subprocess
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -55,7 +55,10 @@ def test_git_repository가_연결된_note_작성은_commit_hash를_반환한다(
     asyncio.run(exercise_writer())
 
 
-def test_git_push_service는_local_time_commit_후_git_fallback으로_push한다(
+KST = timezone(timedelta(hours=9))
+
+
+def test_git_push_service는_utc_time_commit_후_git_fallback으로_push한다(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -86,19 +89,19 @@ def test_git_push_service는_local_time_commit_후_git_fallback으로_push한다
         push_service = VaultGitPushService(
             repository=GitRepository(root=vault_root),
             queue=VaultWriteQueue(),
-            clock=lambda: datetime(2026, 6, 12, 22, 45),
+            clock=lambda: datetime(2026, 6, 12, 22, 45, tzinfo=KST),
         )
 
         # When: gh를 사용할 수 없는 환경에서 push를 수행한다.
         result = await push_service.push_vault()
 
-        # Then: local time commit message로 커밋된 뒤 원격 main branch로 push된다.
+        # Then: UTC commit message로 커밋된 뒤 원격 main branch로 push된다.
         assert result.committed is True
         assert result.commit_hash is not None
         assert result.push_tool == "git"
         assert result.push_command == "git push origin main"
         assert (
-            _git_stdout(vault_root, "log", "-1", "--format=%s") == "2026-06-12 22:45 - vault sync"
+            _git_stdout(vault_root, "log", "-1", "--format=%s") == "2026-06-12 13:45 - vault sync"
         )
         assert _git_stdout(vault_root, "rev-parse", "HEAD") == _git_stdout(
             remote_root,
@@ -149,7 +152,7 @@ def test_git_push_service는_상위_worktree에서_vault_path만_commit한다(
         push_service = VaultGitPushService(
             repository=GitRepository(root=vault_root),
             queue=VaultWriteQueue(),
-            clock=lambda: datetime(2026, 6, 12, 22, 45),
+            clock=lambda: datetime(2026, 6, 12, 22, 45, tzinfo=UTC),
         )
 
         # When: vault 하위 경로에서 GitHub push를 수행한다.

@@ -79,7 +79,7 @@ def register_vault_tools(
 
     @server.tool(
         description=(
-            "Commit all pending vault changes with a local-time "
+            "Commit all pending vault changes with a UTC "
             "'YYYY-MM-DD HH:MM - vault sync' message and push origin to the current branch. "
             "The server checks GitHub CLI auth first, then falls back to git push."
         )

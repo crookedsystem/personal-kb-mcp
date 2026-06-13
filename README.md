@@ -67,7 +67,7 @@ The default endpoint is `http://127.0.0.1:9999/mcp`. Once the server is up you c
 
 ### Push the vault to GitHub
 
-`kb_push_vault` commits all pending changes in `KB_VAULT_PATH` using the local-time commit message format `YYYY-MM-DD HH:MM - vault sync`, then pushes `origin` to the current branch. The server checks GitHub CLI auth first; the actual transfer uses `git push`, and it falls back to plain `git push` when `gh` is unavailable or unauthenticated.
+`kb_push_vault` commits all pending changes in `KB_VAULT_PATH` using the UTC commit message format `YYYY-MM-DD HH:MM - vault sync`, then pushes `origin` to the current branch. The server checks GitHub CLI auth first; the actual transfer uses `git push`, and it falls back to plain `git push` when `gh` is unavailable or unauthenticated.
 
 Use this environment variable to enable scheduled push:
 
