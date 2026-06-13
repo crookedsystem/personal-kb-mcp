@@ -6,11 +6,10 @@ import json
 from agent_hooks.llm_wiki_agent_hook import (
     STOP_UPDATE_REASON,
     extract_prompt,
-    format_context_block,
-    format_context_error,
-    load_context,
     main,
 )
+from agent_hooks.llm_wiki_context_client import load_context
+from agent_hooks.llm_wiki_context_formatter import format_context_block, format_context_error
 from pytest import CaptureFixture, MonkeyPatch
 
 
@@ -114,11 +113,11 @@ def test_load_context는_kb_context_실패나_legacy_schema면_search_notes로_f
     async def fake_context_legacy(**kwargs: object) -> dict[str, object]:
         return {"query": "legacy", "sections": [{"name": "direct_matches", "notes": []}]}
 
-    monkeypatch.setattr("agent_hooks.llm_wiki_agent_hook.search_notes", fake_search_notes)
+    monkeypatch.setattr("agent_hooks.llm_wiki_context_client.search_notes", fake_search_notes)
 
     for fake_context_notes in (fake_context_error, fake_context_legacy):
         monkeypatch.setattr(
-            "agent_hooks.llm_wiki_agent_hook.context_notes",
+            "agent_hooks.llm_wiki_context_client.context_notes",
             fake_context_notes,
         )
         payload = asyncio.run(
