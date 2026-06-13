@@ -6,6 +6,7 @@ from pathlib import Path
 from common.model import FrozenModel
 
 DEFAULT_REMOTE = "origin"
+VAULT_PATHSPEC = "."
 
 
 @dataclass(frozen=True)
@@ -26,23 +27,23 @@ class GitRepository(FrozenModel):
     def commit_paths(self, paths: list[Path], message: str) -> str:
         relative_paths = [self._relative_path(path) for path in paths]
         self._run(["add", "--", *relative_paths])
-        self._commit(message)
+        self._commit(message, relative_paths)
         return self.head_hash()
 
     def commit_all_changed(self, message: str) -> str | None:
         if not self.has_changes():
             return None
-        self._run(["add", "-A"])
+        self._run(["add", "-A", "--", VAULT_PATHSPEC])
         if not self.has_staged_changes():
             return None
-        self._commit(message)
+        self._commit(message, [VAULT_PATHSPEC])
         return self.head_hash()
 
     def has_changes(self) -> bool:
-        return bool(self._run(["status", "--porcelain"]).strip())
+        return bool(self._run(["status", "--porcelain", "--", VAULT_PATHSPEC]).strip())
 
     def has_staged_changes(self) -> bool:
-        completed = self._run_unchecked(["diff", "--cached", "--quiet"])
+        completed = self._run_unchecked(["diff", "--cached", "--quiet", "--", VAULT_PATHSPEC])
         if completed.returncode not in (0, 1):
             completed.check_returncode()
         return completed.returncode == 1
@@ -80,7 +81,7 @@ class GitRepository(FrozenModel):
     def _relative_path(self, path: Path) -> str:
         return path.resolve().relative_to(self.root.resolve()).as_posix()
 
-    def _commit(self, message: str) -> None:
+    def _commit(self, message: str, pathspecs: list[str]) -> None:
         self._run(
             [
                 "-c",
@@ -90,6 +91,8 @@ class GitRepository(FrozenModel):
                 "commit",
                 "-m",
                 message,
+                "--",
+                *pathspecs,
             ]
         )
 
