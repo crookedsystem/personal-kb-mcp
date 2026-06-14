@@ -105,6 +105,34 @@ Create or update pages only when the content improves future retrieval:
 - Do not create pages for passing mentions, minor side details, or out-of-domain material.
 - Split pages that exceed about 200 lines into focused sub-pages and cross-link them.
 
+### Entity creation rules
+
+Entities are stable link anchors. Create or update an `entities/` page when the subject is a durable named thing that future notes should connect to as a relationship subject or object.
+
+Create an entity for:
+
+- named projects, repositories, products, services, APIs, modules, packages, datasets, protocols, standards, organizations, teams, or people;
+- a project/service/module whose code conventions, development style, operational rules, or domain rules will be referenced by multiple notes;
+- a named system boundary that can own related concept/query pages, such as backend service, frontend app, MCP server, agent skill, data pipeline, or domain module;
+- an alias-heavy or renamed subject where a canonical page prevents duplicate notes;
+- a named external technology only when the vault will repeatedly connect decisions, gotchas, comparisons, or implementation notes to it.
+
+Do not create an entity for:
+
+- broad ideas, qualities, techniques, patterns, algorithms, or one-off terms; use `concepts/` instead;
+- a single transient mention that is not likely to anchor future links;
+- generic roles or vague buckets such as "backend", "frontend", "database", "auth", "logging", or "architecture" unless they are part of a named stable module boundary;
+- implementation details that belong inside an existing project/service/module entity or a concept page;
+- duplicate spelling variants before checking aliases, existing link targets, and exact-name search results.
+
+Before creating an entity:
+
+- Call `kb_context(mode="prewrite", path_prefix="entities")` with the canonical candidate name and inspect `link_targets`, `broken_links`, and `suggested_links`.
+- Search exact aliases with `kb_search_notes` when `kb_context` returns a `followup_search`, when names differ by case/hyphenation, or when the subject may already be covered by a broader entity.
+- Prefer updating or linking an existing entity over creating a parallel page.
+- If the new page is project-specific, link it from related concept/query pages and link those pages back to the entity.
+- Put project-specific code style, development style, and domain rules under the matching entity as relationships or outbound links, not as isolated unanchored notes.
+
 ### Required frontmatter
 
 Every wiki page is written through structured fields that render YAML frontmatter:
@@ -266,11 +294,12 @@ Do not hand-author that trailer in the `body` argument unless you are intentiona
 
 1. Capture or identify the source material.
 2. Decide whether it belongs in `raw/` as immutable source, a synthesized page, or both.
-3. Call `kb_context(mode="prewrite")` before writing. Repair relevant broken links, reuse existing link targets, and inspect suggested links before creating pages.
-4. Use `kb_search_notes` with `followup_search` when you need evidence for a proposed link or duplicate-page check.
-5. Create or update only the pages that meet the page thresholds above or the vault `SCHEMA.md` thresholds.
-6. Update navigation (`index.md`) and audit trail (`log.md`).
-7. Report the exact note paths written and the returned hashes.
+3. Resolve entity anchors before writing concepts or queries. If the note is project/service/module-specific, identify the matching `entities/` page first.
+4. Call `kb_context(mode="prewrite")` before writing. Repair relevant broken links, reuse existing link targets, and inspect suggested links before creating pages.
+5. Use `kb_search_notes` with `followup_search` when you need evidence for a proposed link, duplicate-page check, alias check, or entity creation decision.
+6. Create or update only the pages that meet the entity/page thresholds above or the vault `SCHEMA.md` thresholds.
+7. Update navigation (`index.md`) and audit trail (`log.md`).
+8. Report the exact note paths written and the returned hashes.
 
 ## Exploration flow
 
